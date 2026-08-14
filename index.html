@@ -183,6 +183,17 @@
           </svg>
           <span>Calendário de Plantões</span>
         </a>
+
+        <a href="#/equipes" class="nav-link" data-nav="equipes" data-route="equipes">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+          <span>Equipes Fixas</span>
+        </a>
       </nav>
 
       <!-- Ações do Canto Direito -->
@@ -311,6 +322,22 @@
           <p class="home-tool-desc">Consulte a escala contínua de 12x36, dias de trabalho, folgas e próximos plantões.
           </p>
           <a href="#/calendario" class="btn btn-primary" data-nav="calendario">Abrir ferramenta</a>
+        </div>
+
+        <!-- Card 4: Equipes Fixas -->
+        <div class="home-tool-card">
+          <div class="home-tool-icon">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+          </div>
+          <h2 class="home-tool-title">Equipes Fixas</h2>
+          <p class="home-tool-desc">Visualize, edite e copie as equipes fixas por região (SP, SJC, RJ). Tudo salvo localmente.</p>
+          <a href="#/equipes" class="btn btn-primary" data-nav="equipes">Abrir ferramenta</a>
         </div>
       </div>
     </section>
@@ -680,6 +707,31 @@ Exemplo:
       </div>
     </section>
 
+    <!-- ==========================================================================
+         VIEW 5: EQUIPES FIXAS
+         ========================================================================== -->
+    <section id="view-equipes" class="view-section">
+      <div class="card equipes-toolbar-card">
+        <div class="card-header">
+          <div class="card-title-block">
+            <h2>Equipes Fixas</h2>
+            <p>Visualize, edite e copie integrantes por região. Tudo salvo localmente no navegador.</p>
+          </div>
+        </div>
+        <div id="equipes-tabs" class="equipes-tabs"></div>
+        <div class="search-wrap equipes-search-wrap">
+          <svg class="search-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input class="search-input" id="equipes-search" placeholder="Pesquisar integrante..." autocomplete="off">
+          <button id="equipes-search-clear" class="btn-clear-search hide" type="button">✕</button>
+        </div>
+      </div>
+      <div id="equipes-container" class="equipes-container"></div>
+    </section>
+
   </main>
 
   <!-- ==========================================================================
@@ -785,21 +837,153 @@ Exemplo:
         <h3>Foto de Perfil (<span id="modal-user-photo-name">Usuário</span>)</h3>
         <button class="btn-card-mini btn-modal-close">✕</button>
       </div>
-      <div class="modal-body" style="text-align: center;">
-        <div id="modal-user-photo-preview" style="margin: 10px auto 20px; display: inline-block;"></div>
-        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px;">
+      <div class="modal-body photo-modal-body">
+        <div id="modal-user-photo-preview" class="photo-preview-wrap"></div>
+
+        <div id="photo-position-panel" class="photo-position-panel hide">
+          <p class="photo-position-hint">Arraste a foto ou use os controles para ajustar o enquadramento.</p>
+          <div class="photo-position-controls">
+            <label class="photo-position-label">
+              <span>Horizontal</span>
+              <input type="range" id="photo-pos-x" min="0" max="100" value="50">
+            </label>
+            <label class="photo-position-label">
+              <span>Vertical</span>
+              <input type="range" id="photo-pos-y" min="0" max="100" value="50">
+            </label>
+          </div>
+          <button class="btn btn-primary btn-sm" id="btn-save-photo-position" type="button">Salvar posicionamento</button>
+        </div>
+
+        <p class="photo-modal-desc">
           Sua foto fica salva localmente no navegador e aparece no topo e na seleção de usuário.
         </p>
 
         <input type="file" id="input-user-photo-file" accept="image/*" style="display: none;">
 
-        <div style="display: flex; gap: 10px; justify-content: center;">
-          <button class="btn btn-primary" id="btn-upload-user-photo">Adicionar / Alterar Foto</button>
-          <button class="btn btn-danger" id="btn-remove-user-photo">Remover Foto</button>
+        <div class="photo-modal-actions">
+          <button class="btn btn-primary" id="btn-upload-user-photo" type="button">Adicionar / Alterar Foto</button>
+          <button class="btn btn-secondary" id="btn-adjust-photo-position" type="button">Ajustar posicionamento</button>
+          <button class="btn btn-danger" id="btn-remove-user-photo" type="button">Remover Foto</button>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary btn-modal-close">Concluído</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAIS: EQUIPES FIXAS
+       ========================================================================== -->
+  <div id="modal-equipe-editnome" class="modal-overlay modal-equipes-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Editar nome da equipe</h3>
+        <button class="btn-card-mini modal-equipes-close" type="button">✕</button>
+      </div>
+      <div class="modal-body">
+        <label for="editnome-input">Nome da equipe</label>
+        <input type="text" id="editnome-input" placeholder="Ex: EQUIPE FIXA RJ — WALLACE">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-modal-equipes-cancel" type="button">Cancelar</button>
+        <button class="btn btn-primary" id="btn-save-editnome" type="button">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-equipe-editar" class="modal-overlay modal-equipes-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Editar integrante</h3>
+        <button class="btn-card-mini modal-equipes-close" type="button">✕</button>
+      </div>
+      <div class="modal-body equipe-form-body">
+        <label for="edit-membro-nome">Nome</label>
+        <input type="text" id="edit-membro-nome">
+        <label for="edit-membro-matricula">Matrícula <small>(opcional)</small></label>
+        <input type="text" id="edit-membro-matricula" placeholder="Deixe vazio se não houver">
+        <label for="edit-membro-funcao">Função</label>
+        <select id="edit-membro-funcao"></select>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-modal-equipes-cancel" type="button">Cancelar</button>
+        <button class="btn btn-primary" id="btn-save-editar" type="button">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-equipe-adicionar" class="modal-overlay modal-equipes-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Adicionar integrante</h3>
+        <button class="btn-card-mini modal-equipes-close" type="button">✕</button>
+      </div>
+      <div class="modal-body equipe-form-body">
+        <label for="add-membro-nome">Nome</label>
+        <input type="text" id="add-membro-nome">
+        <label for="add-membro-matricula">Matrícula <small>(opcional)</small></label>
+        <input type="text" id="add-membro-matricula" placeholder="Deixe vazio se não houver">
+        <label for="add-membro-funcao">Função</label>
+        <select id="add-membro-funcao"></select>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-modal-equipes-cancel" type="button">Cancelar</button>
+        <button class="btn btn-primary" id="btn-save-adicionar" type="button">Adicionar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-equipe-confirmar" class="modal-overlay modal-equipes-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Remover integrante</h3>
+        <button class="btn-card-mini modal-equipes-close" type="button">✕</button>
+      </div>
+      <div class="modal-body">
+        <p id="confirmar-msg">Tem certeza que deseja remover este integrante?</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-modal-equipes-cancel" type="button">Cancelar</button>
+        <button class="btn btn-danger" id="btn-confirmar-delete" type="button">Remover</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-equipe-restaurar" class="modal-overlay modal-equipes-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Restaurar equipe original</h3>
+        <button class="btn-card-mini modal-equipes-close" type="button">✕</button>
+      </div>
+      <div class="modal-body">
+        <p id="restaurar-msg">Tem certeza que deseja restaurar esta equipe para os dados originais?</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-modal-equipes-cancel" type="button">Cancelar</button>
+        <button class="btn btn-primary" id="btn-confirmar-restore" type="button">Restaurar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-equipe-copiar" class="modal-overlay modal-equipes-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Copiar equipe</h3>
+        <button class="btn-card-mini modal-equipes-close" type="button">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="margin-bottom: 14px; font-size: 0.88rem; color: var(--text-muted);">
+          Equipe: <strong id="copiar-equipe-nome"></strong>
+        </p>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <button class="btn btn-primary" id="btn-copiar-nomes" type="button">Copiar nomes</button>
+          <button class="btn btn-secondary" id="btn-copiar-nomes-mat" type="button">Copiar nomes + matrículas</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-modal-equipes-cancel" type="button">Fechar</button>
       </div>
     </div>
   </div>
@@ -824,6 +1008,7 @@ Exemplo:
   <script src="js/copiador.js"></script>
   <script src="js/escalas.js"></script>
   <script src="js/calendario.js"></script>
+  <script src="js/equipes.js"></script>
 </body>
 
 </html>
