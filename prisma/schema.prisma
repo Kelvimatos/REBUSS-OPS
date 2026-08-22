@@ -9,6 +9,20 @@ datasource db {
   provider = "postgresql"
 }
 
+model UsuarioSistema {
+  id        String   @id @default(uuid())
+  nome      String
+  email     String   @unique
+  senhaHash String
+  perfil    String   @default("OPERADOR") // ADMIN, GESTOR, OPERADOR
+  ativo     Boolean  @default(true)
+  telefone  String?
+  cidade    String?
+  estado    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Usuario {
   id        String   @id @default(uuid())
   nome      String
@@ -63,15 +77,18 @@ model Loja {
 }
 
 model Escala {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   lojaId        String
   data          DateTime
   horario       String
   pivNecessario Int?
   observacoes   String?
-  status        String   @default("ABERTA")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  status        String    @default("ABERTA") // ABERTA, EM_ANDAMENTO, FINALIZADA, CANCELADA
+  importadoPor  String?
+  importadoEm   DateTime  @default(now())
+  finalizadoEm  DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   loja    Loja           @relation(fields: [lojaId], references: [id])
   membros EscalaMembro[]
@@ -81,6 +98,7 @@ model EscalaMembro {
   id                 String    @id @default(uuid())
   escalaId           String
   usuarioId          String
+  cargo              String?   // Supervisor, Chefe de Grupo, Contador, Operador, Escaneador
   status             String    @default("PENDENTE")
   confirmou          Boolean   @default(false)
   horarioConfirmacao DateTime?
@@ -100,4 +118,19 @@ model Ocorrencia {
   tipo       String
   observacao String?
   createdAt  DateTime @default(now())
+}
+
+model ImportacaoLog {
+  id               String   @id @default(uuid())
+  dataHora         DateTime @default(now())
+  usuarioNome      String?
+  lojaNome         String
+  dataOperacao     DateTime
+  horarioOperacao  String?
+  totalProcessados Int      @default(0)
+  totalNovos       Int      @default(0)
+  totalAtualizados Int      @default(0)
+  erros            Int      @default(0)
+  detalhes         String?
+  escalaId         String?
 }

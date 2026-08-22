@@ -22,6 +22,9 @@
 
   <!-- Estilos Gerais Limpos e Sóbrios -->
   <link rel="stylesheet" href="css/style.css">
+
+  <!-- Core API Client -->
+  <script src="js/api.js"></script>
 </head>
 
 <body>
@@ -29,207 +32,296 @@
   <canvas id="confetti-canvas" class="confetti-canvas"></canvas>
 
   <!-- ==========================================================================
-       TELA DE SELEÇÃO DE USUÁRIO (Quem está acessando?)
+       1. TELA DE LOGIN
        ========================================================================== -->
-  <div id="user-select-screen" class="user-select-screen hide">
-    <div class="user-select-card">
-      <div class="user-select-brand">
-        <img src="assets/logo.png" alt="REBUSS OPS Logo" class="user-select-logo">
-        <span class="user-select-title">REBUSS OPS</span>
-      </div>
-      <div>
-        <span class="user-select-tag">Central de Ferramentas</span>
+  <div id="view-login" class="auth-screen-overlay hide">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <img src="assets/logo.png" alt="REBUSS OPS Logo" class="auth-logo">
+        <h1 class="auth-title">REBUSS OPS</h1>
+        <span class="auth-subtitle">Central de Gestão & Operações</span>
       </div>
 
-      <h2 class="user-select-heading">Quem está acessando?</h2>
-      <p class="user-select-desc">Selecione seu perfil para personalizar seus lançamentos, escalas e calendário.</p>
+      <div class="auth-header-text">
+        <h2>Acesse sua conta</h2>
+        <p>Informe suas credenciais para gerenciar escalas e equipes.</p>
+      </div>
 
-      <div class="users-grid">
-        <!-- Kelvi Matos com Foto Real em Destaque -->
-        <div class="user-card-option" data-user-id="kelvi">
-          <div class="user-avatar-slot">
-            <img src="assets/kelvi-matos.jpeg" alt="Kelvi Matos" class="user-avatar-img">
+      <div id="login-error-msg" class="auth-alert-error hide"></div>
+
+      <form id="form-login" class="auth-form" autocomplete="on">
+        <div class="form-group">
+          <label for="login-email">E-mail</label>
+          <div class="input-with-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+              <polyline points="22,6 12,13 2,6"></polyline>
+            </svg>
+            <input type="email" id="login-email" placeholder="seu.email@rebuss.com" required autocomplete="email">
           </div>
-          <span class="user-name-label">Kelvi</span>
         </div>
 
-        <!-- Francisco -->
-        <div class="user-card-option" data-user-id="francisco">
-          <div class="user-avatar-slot">
-            <div class="user-avatar-neutral">
-              <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
+        <div class="form-group">
+          <label for="login-password">Senha</label>
+          <div class="input-with-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password">
+            <button type="button" class="btn-toggle-password" data-target="login-password" onclick="AuthModule.togglePasswordVisibility('login-password', this)" title="Mostrar/ocultar senha">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
               </svg>
-            </div>
+            </button>
           </div>
-          <span class="user-name-label">Francisco</span>
         </div>
 
-        <!-- Bruno -->
-        <div class="user-card-option" data-user-id="bruno">
-          <div class="user-avatar-slot">
-            <div class="user-avatar-neutral">
-              <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
-              </svg>
-            </div>
-          </div>
-          <span class="user-name-label">Bruno</span>
-        </div>
+        <button type="submit" id="btn-login-submit" class="btn btn-primary btn-auth-submit">
+          Entrar
+        </button>
+      </form>
 
-        <!-- Matheus -->
-        <div class="user-card-option" data-user-id="matheus">
-          <div class="user-avatar-slot">
-            <div class="user-avatar-neutral">
-              <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
-              </svg>
-            </div>
-          </div>
-          <span class="user-name-label">Matheus</span>
-        </div>
-
-        <!-- Arthur -->
-        <div class="user-card-option" data-user-id="arthur">
-          <div class="user-avatar-slot">
-            <div class="user-avatar-neutral">
-              <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
-              </svg>
-            </div>
-          </div>
-          <span class="user-name-label">Arthur</span>
-        </div>
-
-        <!-- Alexandre -->
-        <div class="user-card-option" data-user-id="alexandre">
-          <div class="user-avatar-slot">
-            <div class="user-avatar-neutral">
-              <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
-              </svg>
-            </div>
-          </div>
-          <span class="user-name-label">Alexandre</span>
-        </div>
+      <div class="auth-footer-link">
+        <span>Ainda não possui uma conta?</span>
+        <button id="btn-goto-register" class="btn-link">Criar conta</button>
       </div>
     </div>
   </div>
 
-
-  <header class="site-header">
-    <div class="header-container">
-      <div class="header-brand-side">
-        <!-- Botão Mobile Menu Toggle -->
-        <button id="btn-mobile-menu" class="btn-icon btn-mobile-menu" title="Menu de navegação" aria-label="Abrir Menu">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <line x1="3" y1="12" x2="21" y2="12"></line>
-            <line x1="3" y1="6" x2="21" y2="6"></line>
-            <line x1="3" y1="18" x2="21" y2="18"></line>
-          </svg>
-        </button>
-
-        <a href="#/inicio" class="brand-wrapper" data-nav="inicio">
-          <div class="brand-logo-frame">
-            <img src="assets/logo.png" alt="REBUSS OPS Logo" class="brand-logo">
-          </div>
-          <div class="brand-text-block">
-            <div class="brand-title-row">
-              <span class="brand-title">REBUSS OPS</span>
-              <span class="brand-status-dot" title="Sistema Operacional Ativo"></span>
-            </div>
-            <span class="brand-subtitle">Central de Ferramentas</span>
-          </div>
-        </a>
+  <!-- ==========================================================================
+       2. TELA DE CADASTRO DE USUÁRIO
+       ========================================================================== -->
+  <div id="view-register" class="auth-screen-overlay hide">
+    <div class="auth-card auth-card-register">
+      <div class="auth-brand">
+        <img src="assets/logo.png" alt="REBUSS OPS Logo" class="auth-logo">
+        <h1 class="auth-title">REBUSS OPS</h1>
+        <span class="auth-subtitle">Cadastro de Membro da Escala</span>
       </div>
 
-      <!-- Menu Principal Desktop -->
-      <nav class="nav-links" id="desktop-nav-links">
-        <a href="#/inicio" class="nav-link active" data-nav="inicio" data-route="inicio">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-            <polyline points="9 22 9 12 15 12 15 22"></polyline>
-          </svg>
-          <span>Início</span>
-        </a>
+      <div class="auth-header-text">
+        <h2>Criar sua conta</h2>
+        <p>Preencha os dados abaixo para ter acesso completo às ferramentas e escalas.</p>
+      </div>
 
-        <a href="#/copiador" class="nav-link" data-nav="copiador" data-route="copiador">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
-            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
-            <line x1="9" y1="12" x2="15" y2="12"></line>
-            <line x1="9" y1="16" x2="13" y2="16"></line>
-          </svg>
-          <span>Copiador</span>
-        </a>
+      <div id="reg-error-msg" class="auth-alert-error hide"></div>
 
-        <a href="#/escalas" class="nav-link" data-nav="escalas" data-route="escalas">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-            <line x1="16" y1="2" x2="16" y2="6"></line>
-            <line x1="8" y1="2" x2="8" y2="6"></line>
-            <line x1="3" y1="10" x2="21" y2="10"></line>
-          </svg>
-          <span>Escalas</span>
-        </a>
-
-        <a href="#/calendario" class="nav-link" data-nav="calendario" data-route="calendario">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-            <line x1="16" y1="2" x2="16" y2="6"></line>
-            <line x1="8" y1="2" x2="8" y2="6"></line>
-            <line x1="3" y1="10" x2="21" y2="10"></line>
-            <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"></path>
-          </svg>
-          <span>Calendário</span>
-        </a>
-
-        <a href="#/equipes" class="nav-link" data-nav="equipes" data-route="equipes">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-            <circle cx="9" cy="7" r="4"></circle>
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-          </svg>
-          <span>Equipes Fixas</span>
-        </a>
-      </nav>
-
-      <!-- Ações do Canto Direito -->
-      <div class="header-actions">
-        <!-- Perfil do Usuário Ativo -->
-        <div class="user-profile-badge" id="header-user-badge">
-          <div id="header-user-avatar-wrapper" class="header-avatar-ring" title="Clique para alterar foto de perfil">
-            <img src="assets/kelvi-matos.jpeg" alt="Foto de Perfil" class="header-user-avatar">
-          </div>
-          <div class="header-user-text">
-            <span class="header-user-role">Operador</span>
-            <span class="header-user-name" id="header-user-name">Kelvi</span>
-          </div>
-          <button id="btn-switch-user" class="btn-switch-user" title="Trocar perfil de usuário">
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"
-              stroke-linecap="round" stroke-linejoin="round">
-              <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"></path>
-            </svg>
-            <span>Trocar</span>
-          </button>
+      <form id="form-register" class="auth-form" autocomplete="on">
+        <div class="form-group">
+          <label for="reg-nome">Nome Completo</label>
+          <input type="text" id="reg-nome" placeholder="Ex: João da Silva" required autocomplete="name">
         </div>
+
+        <div class="form-group">
+          <label for="reg-email">E-mail Profissional</label>
+          <input type="email" id="reg-email" placeholder="seu.email@rebuss.com" required autocomplete="email">
+        </div>
+
+        <div class="form-row-2">
+          <div class="form-group">
+            <label for="reg-password">Senha (mín. 8 dígitos)</label>
+            <div class="input-with-icon">
+              <input type="password" id="reg-password" placeholder="••••••••" minlength="8" required autocomplete="new-password">
+              <button type="button" class="btn-toggle-password" data-target="reg-password" onclick="AuthModule.togglePasswordVisibility('reg-password', this)">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="reg-password-confirm">Confirmar Senha</label>
+            <div class="input-with-icon">
+              <input type="password" id="reg-password-confirm" placeholder="••••••••" minlength="8" required autocomplete="new-password">
+              <button type="button" class="btn-toggle-password" data-target="reg-password-confirm" onclick="AuthModule.togglePasswordVisibility('reg-password-confirm', this)">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="reg-phone">Telefone / WhatsApp</label>
+          <input type="tel" id="reg-phone" placeholder="(11) 99999-9999" autocomplete="tel">
+        </div>
+
+        <div class="form-row-2">
+          <div class="form-group">
+            <label for="reg-cidade">Cidade</label>
+            <input type="text" id="reg-cidade" placeholder="São Paulo">
+          </div>
+          <div class="form-group">
+            <label for="reg-estado">Estado (UF)</label>
+            <input type="text" id="reg-estado" placeholder="SP" maxlength="2" style="text-transform:uppercase;">
+          </div>
+        </div>
+
+        <button type="submit" id="btn-register-submit" class="btn btn-primary btn-auth-submit">
+          Criar Conta
+        </button>
+      </form>
+
+      <div class="auth-footer-link">
+        <span>Já possui uma conta?</span>
+        <button id="btn-goto-login" class="btn-link">Fazer login</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Wrapper da Aplicação Autenticada -->
+  <div id="app-main-content">
+    <header class="site-header">
+      <div class="header-container">
+        <div class="header-brand-side">
+          <!-- Botão Mobile Menu Toggle -->
+          <button id="btn-mobile-menu" class="btn-icon btn-mobile-menu" title="Menu de navegação" aria-label="Abrir Menu">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+
+          <a href="#/dashboard" class="brand-wrapper" data-nav="dashboard">
+            <div class="brand-logo-frame">
+              <img src="assets/logo.png" alt="REBUSS OPS Logo" class="brand-logo">
+            </div>
+            <div class="brand-text-block">
+              <div class="brand-title-row">
+                <span class="brand-title">REBUSS OPS</span>
+                <span class="brand-status-dot" title="Sistema Operacional Ativo"></span>
+              </div>
+              <span class="brand-subtitle">Central de Operações</span>
+            </div>
+          </a>
+        </div>
+
+        <!-- Menu Principal Desktop -->
+        <nav class="nav-links" id="desktop-nav-links">
+          <a href="#/dashboard" class="nav-link active" data-nav="dashboard" data-route="dashboard">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="9" rx="1"></rect>
+              <rect x="14" y="3" width="7" height="5" rx="1"></rect>
+              <rect x="14" y="12" width="7" height="9" rx="1"></rect>
+              <rect x="3" y="16" width="7" height="5" rx="1"></rect>
+            </svg>
+            <span>Dashboard</span>
+          </a>
+
+          <a href="#/historico" class="nav-link" data-nav="historico" data-route="historico">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"></path>
+            </svg>
+            <span>Histórico</span>
+          </a>
+
+          <a href="#/copiador" class="nav-link" data-nav="copiador" data-route="copiador">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+              <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+              <line x1="9" y1="12" x2="15" y2="12"></line>
+              <line x1="9" y1="16" x2="13" y2="16"></line>
+            </svg>
+            <span>Copiador</span>
+          </a>
+
+          <a href="#/escalas" class="nav-link" data-nav="escalas" data-route="escalas">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+            <span>Escalas</span>
+          </a>
+
+          <a href="#/calendario" class="nav-link" data-nav="calendario" data-route="calendario">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+              <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"></path>
+            </svg>
+            <span>Calendário</span>
+          </a>
+
+          <a href="#/equipes" class="nav-link" data-nav="equipes" data-route="equipes">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+            <span>Equipes Fixas</span>
+          </a>
+
+          <!-- Link Administrativo para Gestão de Usuários -->
+          <a href="#/usuarios-sistema" class="nav-link" id="nav-link-usuarios-sistema" data-nav="usuarios-sistema" data-route="usuarios-sistema" style="display:none;">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="8.5" cy="7" r="4"></circle>
+              <line x1="20" y1="8" x2="20" y2="14"></line>
+              <line x1="23" y1="11" x2="17" y2="11"></line>
+            </svg>
+            <span>Usuários</span>
+          </a>
+        </nav>
+
+        <!-- Ações do Canto Direito -->
+        <div class="header-actions">
+          <!-- Botão Rápido de Importação do Admin Rebuss -->
+          <button class="btn btn-primary btn-sm btn-abrir-importador" onclick="ImportadorModule.abrirModal()" type="button" style="display:inline-flex; align-items:center; gap:6px; font-weight:700;">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>Importar</span>
+          </button>
+          <!-- Perfil do Usuário Ativo com Dropdown -->
+          <div class="user-profile-badge" id="header-user-badge">
+            <div id="header-user-avatar-wrapper" class="header-avatar-ring">
+              <img src="assets/kelvi-matos.jpeg" alt="Foto de Perfil" class="header-user-avatar">
+            </div>
+            <div class="header-user-text">
+              <span class="header-user-role">ADMIN</span>
+              <span class="header-user-name" id="header-user-name">Usuário</span>
+            </div>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+
+            <!-- Dropdown Menu do Usuário -->
+            <div id="header-user-dropdown" class="header-user-dropdown hide">
+              <div class="dropdown-header">
+                <strong id="dropdown-user-name">Usuário</strong>
+                <span class="badge-tag" id="dropdown-user-role">ADMIN</span>
+              </div>
+              <div class="dropdown-divider"></div>
+              <a href="#/dashboard" class="dropdown-item" data-nav="dashboard">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"></rect><rect x="14" y="3" width="7" height="5" rx="1"></rect><rect x="14" y="12" width="7" height="9" rx="1"></rect><rect x="3" y="16" width="7" height="5" rx="1"></rect></svg>
+                <span>Dashboard Operacional</span>
+              </a>
+              <a href="#/usuarios-sistema" class="dropdown-item" data-nav="usuarios-sistema">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+                <span>Gestão de Usuários</span>
+              </a>
+              <div class="dropdown-divider"></div>
+              <button type="button" id="btn-user-logout" class="dropdown-item text-danger">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                <span>Sair da conta</span>
+              </button>
+            </div>
+          </div>
 
         <div class="header-tools-group">
           <!-- Toggle de Tema (Claro / Escuro) -->
@@ -287,12 +379,28 @@
     <!-- Menu Mobile Dropdown / Drawer -->
     <div id="mobile-nav-drawer" class="mobile-nav-drawer hide">
       <div class="mobile-nav-content">
-        <a href="#/inicio" class="mobile-nav-link active" data-nav="inicio" data-route="inicio">
+        <button class="mobile-nav-link btn-abrir-importador" onclick="ImportadorModule.abrirModal()" type="button" style="background:var(--primary); color:#fff; border:none; width:100%; text-align:left; cursor:pointer; margin-bottom:6px;">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          <span>Início</span>
+          <span>📥 Importar Operação</span>
+        </button>
+        <a href="#/dashboard" class="mobile-nav-link active" data-nav="dashboard" data-route="dashboard">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="9" rx="1"></rect>
+            <rect x="14" y="3" width="7" height="5" rx="1"></rect>
+            <rect x="14" y="12" width="7" height="9" rx="1"></rect>
+            <rect x="3" y="16" width="7" height="5" rx="1"></rect>
+          </svg>
+          <span>Dashboard</span>
+        </a>
+        <a href="#/historico" class="mobile-nav-link" data-nav="historico" data-route="historico">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"></path>
+          </svg>
+          <span>Histórico</span>
         </a>
         <a href="#/copiador" class="mobile-nav-link" data-nav="copiador" data-route="copiador">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
@@ -341,9 +449,340 @@
   <main class="main-container">
 
     <!-- ==========================================================================
-         VIEW 1: INÍCIO (3 CARDS DAS FERRAMENTAS)
+         VIEW 0: DASHBOARD OPERACIONAL EM TEMPO REAL
          ========================================================================== -->
-    <section id="view-inicio" class="view-section active">
+    <section id="view-dashboard" class="view-section active">
+      <!-- Topo: Boas-vindas e Data -->
+      <div class="dash-welcome-bar">
+        <div class="dash-welcome-text">
+          <h1 id="dash-user-greeting">Olá, Usuário 👋</h1>
+          <p class="dash-welcome-sub">Visão geral da operação em tempo real · <span id="dash-today-date">Hoje</span></p>
+        </div>
+
+        <div class="dash-welcome-controls">
+          <!-- Filtros de Período -->
+          <div class="dash-periodo-group">
+            <button class="dash-periodo-btn active" data-periodo="hoje">Hoje</button>
+            <button class="dash-periodo-btn" data-periodo="7dias">7 dias</button>
+            <button class="dash-periodo-btn" data-periodo="mes">Mês</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Barra de Filtros de Praça / Cidade e Busca Global -->
+      <div class="dash-filter-bar">
+        <div class="dash-city-pills" id="dash-city-pills">
+          <!-- Gerado via JavaScript -->
+        </div>
+
+        <div class="dash-search-wrapper">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="text" id="dash-global-search" placeholder="Buscar colaborador, loja, equipe..." autocomplete="off">
+        </div>
+      </div>
+
+      <!-- 8 Cards de Indicadores Principais -->
+      <div class="dash-metrics-grid" id="dash-metrics-container">
+        <!-- PIV Total -->
+        <div class="metric-card metric-piv">
+          <div class="metric-icon">👥</div>
+          <div class="metric-content">
+            <span class="metric-title">PIV TOTAL</span>
+            <strong class="metric-value" id="m-piv-total">0</strong>
+            <span class="metric-sub">Pessoas necessárias</span>
+          </div>
+        </div>
+
+        <!-- Confirmados -->
+        <div class="metric-card metric-confirmados">
+          <div class="metric-icon">✅</div>
+          <div class="metric-content">
+            <span class="metric-title">CONFIRMADOS</span>
+            <strong class="metric-value text-success" id="m-confirmados">0</strong>
+            <span class="metric-sub">Presença confirmada</span>
+          </div>
+        </div>
+
+        <!-- Em Loja -->
+        <div class="metric-card metric-emloja">
+          <div class="metric-icon">🟢</div>
+          <div class="metric-content">
+            <span class="metric-title">EM LOJA</span>
+            <strong class="metric-value text-primary" id="m-em-loja">0</strong>
+            <span class="metric-sub">Já chegaram</span>
+          </div>
+        </div>
+
+        <!-- A Caminho -->
+        <div class="metric-card metric-caminho">
+          <div class="metric-icon">🚐</div>
+          <div class="metric-content">
+            <span class="metric-title">A CAMINHO</span>
+            <strong class="metric-value text-info" id="m-a-caminho">0</strong>
+            <span class="metric-sub">Em deslocamento</span>
+          </div>
+        </div>
+
+        <!-- Recusas -->
+        <div class="metric-card metric-recusas">
+          <div class="metric-icon">❌</div>
+          <div class="metric-content">
+            <span class="metric-title">RECUSAS</span>
+            <strong class="metric-value text-warning" id="m-recusas">0</strong>
+            <span class="metric-sub">Convites recusados</span>
+          </div>
+        </div>
+
+        <!-- Faltas -->
+        <div class="metric-card metric-faltas">
+          <div class="metric-icon">🚫</div>
+          <div class="metric-content">
+            <span class="metric-title">FALTAS</span>
+            <strong class="metric-value text-danger" id="m-faltas">0</strong>
+            <span class="metric-sub">Ausências registradas</span>
+          </div>
+        </div>
+
+        <!-- Atrasos -->
+        <div class="metric-card metric-atrasos">
+          <div class="metric-icon">⏰</div>
+          <div class="metric-content">
+            <span class="metric-title">ATRASOS</span>
+            <strong class="metric-value text-warning" id="m-atrasos">0</strong>
+            <span class="metric-sub">Chegadas tardias</span>
+          </div>
+        </div>
+
+        <!-- Cancelamentos -->
+        <div class="metric-card metric-cancelados">
+          <div class="metric-icon">🔄</div>
+          <div class="metric-content">
+            <span class="metric-title">CANCELAMENTOS</span>
+            <strong class="metric-value text-muted" id="m-cancelamentos">0</strong>
+            <span class="metric-sub">Escalas canceladas</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 Indicadores Percentuais -->
+      <div class="dash-rates-grid">
+        <div class="rate-card">
+          <div class="rate-header">
+            <span>Taxa de Aceitação</span>
+            <strong id="t-aceitacao">0%</strong>
+          </div>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-fill" id="t-aceitacao-bar" style="width: 0%; background: #3b82f6;"></div>
+          </div>
+          <span class="rate-footer">Confirmados ÷ Convites</span>
+        </div>
+
+        <div class="rate-card">
+          <div class="rate-header">
+            <span>Taxa de Presença</span>
+            <strong id="t-presenca" class="text-success">0%</strong>
+          </div>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-fill" id="t-presenca-bar" style="width: 0%; background: #10b981;"></div>
+          </div>
+          <span class="rate-footer">Presentes ÷ Confirmados</span>
+        </div>
+
+        <div class="rate-card">
+          <div class="rate-header">
+            <span>Taxa de Falta</span>
+            <strong id="t-falta" class="text-danger">0%</strong>
+          </div>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-fill" id="t-falta-bar" style="width: 0%; background: #ef4444;"></div>
+          </div>
+          <span class="rate-footer">Faltas ÷ Confirmados</span>
+        </div>
+
+        <div class="rate-card">
+          <div class="rate-header">
+            <span>Taxa de Atraso</span>
+            <strong id="t-atraso" class="text-warning">0%</strong>
+          </div>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-fill" id="t-atraso-bar" style="width: 0%; background: #f59e0b;"></div>
+          </div>
+          <span class="rate-footer">Atrasos ÷ Presentes</span>
+        </div>
+      </div>
+
+      <!-- Seção em 2 Colunas: Escalas de Hoje & Alertas Operacionais -->
+      <div class="dash-2cols-grid">
+        <!-- Coluna 1: Escalas de Hoje -->
+        <div class="card dash-panel-card">
+          <div class="card-header">
+            <div class="card-title-block">
+              <h3>📅 Escalas de Hoje <span class="badge-count" id="dash-escalas-count">0</span></h3>
+              <p>Lojas programadas com acompanhamento de PIV em tempo real</p>
+            </div>
+            <a href="#/escalas" class="btn btn-sm btn-ghost" data-nav="escalas">Gerar Nova Escala</a>
+          </div>
+          <div class="dash-escalas-container" id="dash-escalas-list">
+            <!-- Renderizado via JS -->
+          </div>
+        </div>
+
+        <!-- Coluna 2: Alertas Operacionais -->
+        <div class="card dash-panel-card">
+          <div class="card-header">
+            <div class="card-title-block">
+              <h3>⚠️ Alertas Operacionais <span class="badge-count badge-danger" id="dash-alertas-count">0</span></h3>
+              <p>Notificações automáticas de PIV pendente, atrasos e faltas</p>
+            </div>
+          </div>
+          <div class="dash-alertas-container" id="dash-alertas-list">
+            <!-- Renderizado via JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Seção em 2 Colunas: Gráfico Operacional & Ranking -->
+      <div class="dash-2cols-grid">
+        <!-- Coluna 1: Gráfico Operacional -->
+        <div class="card dash-panel-card">
+          <div class="card-header">
+            <div class="card-title-block">
+              <h3>📊 Desempenho Operacional</h3>
+              <p>Distribuição de presenças, faltas, atrasos e recusas</p>
+            </div>
+          </div>
+          <div class="dash-chart-container">
+            <canvas id="dash-operation-chart" height="200"></canvas>
+          </div>
+        </div>
+
+        <!-- Coluna 2: Ranking de Colaboradores -->
+        <div class="card dash-panel-card">
+          <div class="card-header">
+            <div class="card-title-block">
+              <h3>🏆 Melhores Colaboradores</h3>
+              <p>Top pontualidade e assiduidade nos plantões</p>
+            </div>
+          </div>
+          <div class="dash-ranking-container" id="dash-ranking-list">
+            <!-- Renderizado via JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Seção: Resumo das Equipes -->
+      <div class="card dash-panel-card">
+        <div class="card-header">
+          <div class="card-title-block">
+            <h3>👥 Resumo das Equipes Fixas</h3>
+            <p>Visão geral de integrantes e taxa de presença consolidada</p>
+          </div>
+          <a href="#/equipes" class="btn btn-sm btn-ghost" data-nav="equipes">Ver Todas as Equipes</a>
+        </div>
+        <div class="dash-equipes-grid" id="dash-equipes-grid">
+          <!-- Renderizado via JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         VIEW HISTÓRICO: HISTÓRICO OPERACIONAL PERMANENTE
+         ========================================================================== -->
+    <section id="view-historico" class="view-section">
+      <div class="dash-welcome-bar">
+        <div class="dash-welcome-text">
+          <h1>📚 Histórico Operacional Permanente</h1>
+          <p class="dash-welcome-sub">Registro oficial e imutável de todas as operações importadas e realizadas em 2026.</p>
+        </div>
+
+        <div class="dash-welcome-controls" style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn-primary btn-abrir-importador" type="button" style="display:inline-flex; align-items:center; gap:6px; font-weight:700;">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>Importar do Admin Rebuss</span>
+          </button>
+
+          <button id="btn-toggle-hist-view" class="btn btn-secondary btn-sm" data-mode="tree" type="button">
+            📋 Visualização em Lista
+          </button>
+        </div>
+      </div>
+
+      <!-- Resumo Estatístico do Período -->
+      <div id="hist-stats-summary">
+        <!-- Renderizado dinamicamente via JS -->
+      </div>
+
+      <!-- Barra de Filtros de Período e Praça -->
+      <div class="card" style="margin-bottom: 20px; padding: 16px 20px;">
+        <div class="hist-filter-controls-wrap">
+          <!-- Filtros de Período Rápido -->
+          <div class="dash-periodo-group" style="flex-wrap:wrap;">
+            <button class="dash-periodo-btn hist-periodo-btn active" data-periodo="30dias">Últimos 30 dias</button>
+            <button class="dash-periodo-btn hist-periodo-btn" data-periodo="hoje">Hoje</button>
+            <button class="dash-periodo-btn hist-periodo-btn" data-periodo="ontem">Ontem</button>
+            <button class="dash-periodo-btn hist-periodo-btn" data-periodo="7dias">7 dias</button>
+            <button class="dash-periodo-btn hist-periodo-btn" data-periodo="mes_atual">Este Mês</button>
+            <button class="dash-periodo-btn hist-periodo-btn" data-periodo="mes_anterior">Mês Anterior</button>
+            <button class="dash-periodo-btn hist-periodo-btn" data-periodo="ano_2026">Todo o Ano de 2026</button>
+            <button class="dash-periodo-btn hist-periodo-btn" data-periodo="personalizado">Personalizado</button>
+          </div>
+
+          <!-- Inputs de Data Personalizada -->
+          <div id="hist-custom-date-wrap" style="display:none; align-items:center; gap:8px; margin-top:10px;">
+            <label for="hist-custom-start" style="font-size:0.8rem; font-weight:600;">De:</label>
+            <input type="date" id="hist-custom-start" class="form-control" style="width:auto; padding:4px 8px; font-size:0.82rem;">
+            <label for="hist-custom-end" style="font-size:0.8rem; font-weight:600;">Até:</label>
+            <input type="date" id="hist-custom-end" class="form-control" style="width:auto; padding:4px 8px; font-size:0.82rem;">
+            <button id="btn-hist-apply-custom" class="btn btn-primary btn-sm" type="button">Filtrar</button>
+          </div>
+        </div>
+
+        <div class="dash-filter-bar" style="margin-top:14px; margin-bottom:0;">
+          <div class="dash-city-pills">
+            <button class="dash-filter-pill hist-city-pill active" data-city="todas">Todas as Praças</button>
+            <button class="dash-filter-pill hist-city-pill" data-city="São Paulo">São Paulo (SP)</button>
+            <button class="dash-filter-pill hist-city-pill" data-city="Rio de Janeiro">Rio de Janeiro (RJ)</button>
+            <button class="dash-filter-pill hist-city-pill" data-city="Belo Horizonte">Belo Horizonte (MG)</button>
+            <button class="dash-filter-pill hist-city-pill" data-city="Brasília">Brasília (DF)</button>
+            <button class="dash-filter-pill hist-city-pill" data-city="Goiânia">Goiânia (GO)</button>
+          </div>
+
+          <div class="dash-search-wrapper" style="min-width:320px;">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="hist-search-input" placeholder="Pesquisar por Loja, Colaborador ou Matrícula..." autocomplete="off">
+          </div>
+        </div>
+      </div>
+
+      <!-- Container da Árvore Histórica (Ano ➔ Mês ➔ Dia) -->
+      <div id="hist-tree-view">
+        <div id="hist-tree-container">
+          <!-- Renderizado via HistoricoModule.js -->
+        </div>
+      </div>
+
+      <!-- Container da Lista de Operações -->
+      <div id="hist-list-view" style="display:none;">
+        <div id="hist-list-container">
+          <!-- Renderizado via HistoricoModule.js -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         VIEW 1: INÍCIO (FERRAMENTAS)
+         ========================================================================== -->
+    <section id="view-inicio" class="view-section">
       <div class="home-hero">
         <h1 class="home-title">REBUSS OPS</h1>
         <p class="home-subtitle">As ferramentas que você precisa para sua rotina em um só lugar.</p>
@@ -822,9 +1261,60 @@ Exemplo:
           </svg>
           <input class="search-input" id="equipes-search" placeholder="Pesquisar integrante..." autocomplete="off">
           <button id="equipes-search-clear" class="btn-clear-search hide" type="button">✕</button>
+        <div id="equipes-container" class="equipes-container"></div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         VIEW 6: GERENCIAMENTO DE USUÁRIOS DO SISTEMA (ADMIN)
+         ========================================================================== -->
+    <section id="view-usuarios-sistema" class="view-section">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title-block">
+            <h2>👥 Gerenciamento de Usuários do Sistema</h2>
+            <p>Controle de acesso, alteração de perfis (ADMIN, GESTOR, OPERADOR) e status de contas.</p>
+          </div>
+        </div>
+
+        <div class="admin-toolbar">
+          <div class="search-wrap" style="flex:1;">
+            <svg class="search-icon-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="admin-search-users" class="search-input" placeholder="Pesquisar por nome ou e-mail..." autocomplete="off">
+          </div>
+
+          <div class="admin-filter-group">
+            <label for="admin-filter-role">Filtrar Perfil:</label>
+            <select id="admin-filter-role" class="form-select-sm">
+              <option value="todos">Todos os Perfis</option>
+              <option value="ADMIN">ADMIN</option>
+              <option value="GESTOR">GESTOR</option>
+              <option value="OPERADOR">OPERADOR</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-responsive" style="margin-top:16px;">
+          <table class="table-admin-users">
+            <thead>
+              <tr>
+                <th>Usuário</th>
+                <th>E-mail</th>
+                <th>Perfil</th>
+                <th>Status</th>
+                <th>Data de Cadastro</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="table-admin-users-body">
+              <!-- Renderizado via AdminModule.js -->
+            </tbody>
+          </table>
         </div>
       </div>
-      <div id="equipes-container" class="equipes-container"></div>
     </section>
 
   </main>
@@ -1085,6 +1575,208 @@ Exemplo:
   </div>
 
   <!-- ==========================================================================
+       MODAL: DETALHES DA ESCALA NO DASHBOARD
+       ========================================================================== -->
+  <div id="modal-dash-escala-detalhe" class="modal-overlay">
+    <div class="modal-box" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3 id="modal-dash-escala-title">Detalhes da Escala</h3>
+        <button id="modal-dash-escala-close" class="btn-card-mini btn-modal-close" type="button">✕</button>
+      </div>
+      <div class="modal-body" id="modal-dash-escala-body">
+        <!-- Renderizado dinamicamente -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-modal-close" type="button">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: EDITAR USUÁRIO DO SISTEMA (ADMIN)
+       ========================================================================== -->
+  <div id="modal-admin-edit-user" class="modal-overlay">
+    <div class="modal-box" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3>Editar Usuário do Sistema</h3>
+        <button id="modal-admin-edit-user-close" class="btn-card-mini btn-modal-close" type="button">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="modal-edit-user-name">Nome Completo</label>
+          <input type="text" id="modal-edit-user-name" class="form-control" required>
+        </div>
+
+        <div class="form-group">
+          <label for="modal-edit-user-email">E-mail (Login)</label>
+          <input type="email" id="modal-edit-user-email" class="form-control" readonly disabled style="opacity: 0.7;">
+        </div>
+
+        <div class="form-row-2">
+          <div class="form-group">
+            <label for="modal-edit-user-role">Perfil de Acesso</label>
+            <select id="modal-edit-user-role" class="form-select">
+              <option value="OPERADOR">OPERADOR</option>
+              <option value="GESTOR">GESTOR</option>
+              <option value="ADMIN">ADMIN</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="modal-edit-user-phone">Telefone</label>
+            <input type="tel" id="modal-edit-user-phone" class="form-control">
+          </div>
+        </div>
+
+        <div class="form-row-2">
+          <div class="form-group">
+            <label for="modal-edit-user-city">Cidade</label>
+            <input type="text" id="modal-edit-user-city" class="form-control">
+          </div>
+          <div class="form-group">
+            <label for="modal-edit-user-state">Estado (UF)</label>
+            <input type="text" id="modal-edit-user-state" class="form-control" maxlength="2" style="text-transform:uppercase;">
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 10px;">
+          <label class="custom-checkbox">
+            <input type="checkbox" id="modal-edit-user-status">
+            <span class="checkmark"></span>
+            <span>Conta de Usuário Ativa</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-modal-close" type="button">Cancelar</button>
+        <button id="btn-save-admin-edit-user" class="btn btn-primary" type="button">Salvar Alterações</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: IMPORTADOR INTELIGENTE DO ADMIN REBUSS
+       ========================================================================== -->
+  <div id="modal-importador-operacao" class="modal-overlay">
+    <div class="modal-box" style="max-width: 780px;">
+      <div class="modal-header">
+        <h3>📥 Importador Inteligente de Operações</h3>
+        <button class="btn-card-mini modal-importador-close" type="button">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
+          Cole a escala copiada do <strong>Admin Rebuss</strong>, WhatsApp ou planilha. O sistema identificará automaticamente a loja, data, horário, colaboradores, matrículas e cargos.
+        </p>
+
+        <div class="form-group">
+          <textarea id="input-import-text" class="form-control" rows="6" placeholder="Cole aqui o texto da operação (ex: Americanas 939 - 22/08 - 18:30... e a lista de colaboradores)"></textarea>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; gap:10px; margin-top:8px;">
+          <button id="btn-limpar-importacao" class="btn btn-ghost btn-sm" type="button">Limpar</button>
+          <button id="btn-analisar-importacao" class="btn btn-primary" type="button">🔍 Analisar Operação</button>
+        </div>
+
+        <!-- Área de Pré-Visualização e Confirmação -->
+        <div id="import-preview-wrap" style="display:none; margin-top:18px; border-top:1px solid var(--border); padding-top:16px;">
+          <div id="import-duplicate-alert"></div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="prev-loja">Loja / Unidade</label>
+              <input type="text" id="prev-loja" class="form-control">
+            </div>
+            <div class="form-group">
+              <label for="prev-data">Data da Operação</label>
+              <input type="text" id="prev-data" class="form-control" readonly>
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="prev-horario">Horário</label>
+              <input type="text" id="prev-horario" class="form-control">
+            </div>
+            <div class="form-group">
+              <label for="prev-cidade">Cidade / Estado</label>
+              <input type="text" id="prev-cidade" class="form-control">
+            </div>
+          </div>
+
+          <div class="form-group" style="width: 150px;">
+            <label for="prev-piv">PIV Necessário</label>
+            <input type="number" id="prev-piv" class="form-control">
+          </div>
+
+          <h4 style="margin: 14px 0 8px; font-size: 0.9rem;">👥 Colaboradores Identificados</h4>
+          <div class="table-responsive" style="max-height: 220px; overflow-y: auto;">
+            <table class="table-admin-users">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Matrícula</th>
+                  <th>Nome</th>
+                  <th>Cargo Detectado</th>
+                  <th>Status Inicial</th>
+                </tr>
+              </thead>
+              <tbody id="table-import-colabs-body">
+                <!-- Preenchido via JS -->
+              </tbody>
+            </table>
+          </div>
+
+          <div id="import-result-log"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-importador-close" type="button">Cancelar</button>
+        <button id="btn-confirmar-importacao" class="btn btn-primary" type="button" disabled>
+          💾 Confirmar e Gravar no PostgreSQL
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: DETALHES DA OPERAÇÃO NO HISTÓRICO PERMANENTE
+       ========================================================================== -->
+  <div id="modal-historico-detalhe" class="modal-overlay">
+    <div class="modal-box" style="max-width: 700px;">
+      <div class="modal-header">
+        <h3 id="modal-hist-op-title">Detalhes da Operação</h3>
+        <button class="btn-card-mini modal-historico-close" type="button">✕</button>
+      </div>
+      <div class="modal-body" id="modal-hist-op-body">
+        <!-- Renderizado dinamicamente via JS -->
+      </div>
+      <div class="modal-footer" style="display:flex; justify-content:space-between;">
+        <button id="btn-hist-finalizar-op" class="btn btn-danger btn-sm" type="button">
+          🔒 Finalizar Operação
+        </button>
+        <button class="btn btn-secondary modal-historico-close" type="button">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: DOSSIÊ HISTÓRICO INDIVIDUAL DO COLABORADOR
+       ========================================================================== -->
+  <div id="modal-historico-colaborador" class="modal-overlay">
+    <div class="modal-box" style="max-width: 750px;">
+      <div class="modal-header">
+        <h3 id="modal-hist-colab-title">Dossiê do Colaborador</h3>
+        <button class="btn-card-mini modal-historico-close" type="button">✕</button>
+      </div>
+      <div class="modal-body" id="modal-hist-colab-body">
+        <!-- Renderizado dinamicamente via JS -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-historico-close" type="button">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
        TOAST DE NOTIFICAÇÃO
        ========================================================================== -->
   <div id="global-toast" class="toast">
@@ -1096,10 +1788,17 @@ Exemplo:
        RODAPÉ
        ========================================================================== -->
   <footer class="site-footer">
-    <strong>REBUSS OPS</strong> • Central de Ferramentas • Desenvolvido por <strong>Kelvi Matos</strong>
+    <strong>REBUSS OPS</strong> • Central de Ferramentas & Gestão Operacional • Desenvolvido por <strong>Kelvi Matos</strong>
   </footer>
+  </div> <!-- Fim de #app-main-content -->
 
   <!-- Scripts Modulares -->
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/admin.js"></script>
+  <script src="js/historico.js"></script>
+  <script src="js/importador.js"></script>
   <script src="js/app.js"></script>
   <script src="js/copiador.js"></script>
   <script src="js/escalas.js"></script>

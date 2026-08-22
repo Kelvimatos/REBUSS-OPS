@@ -598,15 +598,46 @@ _${signature}_`;
 
     document.getElementById('escala-preview').textContent = text;
 
-    saveToHistory({
+    const historyEntry = {
       dt, tm, store: st, address: ad, city: selectedCity, uf: selectedUF,
       obs: ob, arrival: ar, text, station: selectedStationData ? { ...selectedStationData } : null,
       createdAt: new Date().toISOString()
-    });
+    };
+
+    saveToHistory(historyEntry);
+    syncEscalaToAPI(historyEntry);
 
     renderHistory();
     App.showToast('Escala gerada com sucesso!', '✓');
     App.playSound('copy');
+  }
+
+  async function syncEscalaToAPI(entry) {
+    if (!window.RebussAPI) return;
+    try {
+      // 1. Localizar ou criar Loja no banco PostgreSQL
+      const lojas = await RebussAPI.lojas.list({ busca: entry.store });
+      let loja = lojas.find(l => l.nome.toLowerCase() === entry.store.toLowerCase());
+      if (!loja) {
+        loja = await RebussAPI.lojas.create({
+          nome: entry.store,
+          endereco: entry.address || null,
+          cidade: entry.city || null,
+          estado: entry.uf || null
+        });
+      }
+      // 2. Criar Escala no PostgreSQL
+      await RebussAPI.escalas.create({
+        lojaId: loja.id,
+        data: entry.dt,
+        horario: entry.tm,
+        observacoes: entry.obs || null,
+        status: 'ABERTA'
+      });
+      console.log('✅ Escala sincronizada no PostgreSQL');
+    } catch (err) {
+      console.warn('ℹ️ Escala salva localmente (banco indisponível ou offline):', err.message);
+    }
   }
 
   async function copyText() {

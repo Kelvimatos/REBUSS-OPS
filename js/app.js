@@ -585,8 +585,8 @@ const App = (() => {
   // 6. NAVEGAÇÃO SPA (Início, Copiador, Escalas, Calendário)
   // ==========================================================================
   function navigateTo(route) {
-    const validRoutes = ['inicio', 'copiador', 'escalas', 'calendario', 'equipes'];
-    const target = validRoutes.includes(route) ? route : 'inicio';
+    const validRoutes = ['dashboard', 'inicio', 'historico', 'copiador', 'escalas', 'calendario', 'equipes', 'usuarios-sistema'];
+    const target = validRoutes.includes(route) ? route : 'dashboard';
 
     document.querySelectorAll('.view-section').forEach(view => {
       view.classList.toggle('active', view.id === `view-${target}`);
@@ -594,7 +594,7 @@ const App = (() => {
 
     document.querySelectorAll('.nav-link, .mobile-nav-link').forEach(link => {
       const linkRoute = link.getAttribute('data-route') || link.getAttribute('data-nav');
-      link.classList.toggle('active', linkRoute === target);
+      link.classList.toggle('active', linkRoute === target || (target === 'dashboard' && linkRoute === 'inicio'));
     });
 
     // Fechar drawer mobile ao navegar
@@ -604,7 +604,13 @@ const App = (() => {
     window.location.hash = `#/${target}`;
     window.scrollTo({ top: 0, behavior: 'instant' });
 
-    if (target === 'copiador' && window.CopiadorModule) {
+    if ((target === 'dashboard' || target === 'inicio') && window.DashboardModule) {
+      DashboardModule.render();
+    } else if (target === 'historico' && window.HistoricoModule) {
+      HistoricoModule.render();
+    } else if (target === 'usuarios-sistema' && window.AdminModule) {
+      AdminModule.render();
+    } else if (target === 'copiador' && window.CopiadorModule) {
       CopiadorModule.render();
     } else if (target === 'escalas' && window.EscalasModule) {
       EscalasModule.render();

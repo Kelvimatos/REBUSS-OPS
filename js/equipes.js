@@ -952,5 +952,60 @@ const EquipesModule = (() => {
     if (document.getElementById('view-equipes')) initDOM();
   });
 
-  return { render, initDOM };
+  async function syncToDatabase() {
+    if (!window.RebussAPI) {
+      alert('API não disponível');
+      return;
+    }
+    try {
+      const dados = state.dados || loadDados();
+      let totalUsuarios = 0;
+      let totalEquipes = 0;
+
+      for (const [regiaoKey, regiao] of Object.entries(dados)) {
+        const estadoUf = regiaoKey.toUpperCase();
+        for (const eq of regiao.equipes) {
+          // Criar ou localizar equipe no PostgreSQL
+          const eqCriada = await RebussAPI.equipes.create({
+            nome: eq.nome,
+            cidade: regiao.label?.split('—')[0]?.trim() || regiaoKey,
+            estado: estadoUf,
+          }).catch(async () => {
+            const lista = await RebussAPI.equipes.list({ busca: eq.nome });
+            return lista.find(e => e.nome === eq.nome);
+          });
+
+          if (eqCriada) {
+            totalEquipes++;
+            for (const m of eq.membros) {
+              if (!m.nome) continue;
+              // Criar ou localizar usuário no PostgreSQL
+              const userCriado = await RebussAPI.usuarios.create({
+                nome: m.nome,
+                matricula: m.matricula || null,
+                cidade: regiao.label?.split('—')[0]?.trim() || null,
+                estado: estadoUf,
+              }).catch(async () => {
+                const uLista = await RebussAPI.usuarios.list({ busca: m.nome });
+                return uLista.find(u => u.nome.toLowerCase() === m.nome.toLowerCase());
+              });
+
+              if (userCriado) {
+                totalUsuarios++;
+                // Associar à equipe
+                await RebussAPI.equipes.addMembro(eqCriada.id, userCriado.id).catch(() => {});
+              }
+            }
+          }
+        }
+      }
+      App.showToast(`Sincronização concluída: ${totalEquipes} equipes e ${totalUsuarios} membros!`, '✓');
+      return { totalEquipes, totalUsuarios };
+    } catch (err) {
+      console.error('Erro na sincronização de equipes com o PostgreSQL:', err);
+      App.showToast('Erro ao sincronizar com banco: ' + err.message, '⚠️');
+    }
+  }
+
+  return { render, initDOM, syncToDatabase };
 })();

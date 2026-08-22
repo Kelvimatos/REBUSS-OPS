@@ -11,13 +11,20 @@ import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
+// Seed Admin
+import { seedInitialAdmin } from './lib/seedAdmin.js';
+
 // Rotas
+import authRouter from './routes/auth.js';
+import adminRouter from './routes/admin.js';
 import usuariosRouter from './routes/usuarios.js';
 import equipesRouter from './routes/equipes.js';
 import lojasRouter from './routes/lojas.js';
 import escalasRouter from './routes/escalas.js';
 import ocorrenciasRouter from './routes/ocorrencias.js';
 import dashboardRouter from './routes/dashboard.js';
+import operacoesRouter from './routes/operacoes.js';
+import historicoRouter from './routes/historico.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -38,27 +45,41 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/api', (req, res) => {
   res.json({
     sistema: 'REBUSS OPS API',
-    versao: '1.0.0',
+    versao: '2.1.0',
     status: 'online',
     horario: new Date().toISOString(),
     endpoints: [
-      'GET  /api/usuarios',
-      'GET  /api/equipes',
-      'GET  /api/lojas',
-      'GET  /api/escalas',
-      'GET  /api/ocorrencias',
-      'GET  /api/dashboard',
+      'POST /api/auth/register',
+      'POST /api/auth/login',
+      'GET  /api/auth/me',
+      'GET  /api/admin/usuarios',
+      'GET  /api/dashboard/indicadores',
+      'GET  /api/dashboard/escalas-hoje',
+      'GET  /api/dashboard/alertas',
+      'GET  /api/dashboard/ranking',
+      'POST /api/operacoes/analisar',
+      'POST /api/operacoes/importar',
+      'PUT  /api/operacoes/:id/finalizar',
+      'GET  /api/operacoes/logs',
+      'GET  /api/historico/arvore',
+      'GET  /api/historico/operacoes',
+      'GET  /api/historico/colaborador/:idOrMatricula',
+      'GET  /api/historico/indicadores',
     ],
   });
 });
 
 // ─── Rotas API ─────────────────────────────────────────────────────────────────
+app.use('/api/auth',         authRouter);
+app.use('/api/admin',        adminRouter);
 app.use('/api/usuarios',     usuariosRouter);
 app.use('/api/equipes',      equipesRouter);
 app.use('/api/lojas',        lojasRouter);
 app.use('/api/escalas',      escalasRouter);
 app.use('/api/ocorrencias',  ocorrenciasRouter);
 app.use('/api/dashboard',    dashboardRouter);
+app.use('/api/operacoes',    operacoesRouter);
+app.use('/api/historico',    historicoRouter);
 
 // ─── Frontend Estático ─────────────────────────────────────────────────────────
 // Serve os arquivos do frontend (index.html, css/, js/, assets/)
@@ -74,7 +95,7 @@ app.use(express.static(frontendDir, {
 }));
 
 // SPA fallback — qualquer rota não encontrada retorna o index.html
-app.get('*', (req, res) => {
+app.use((req, res) => {
   if (req.path.startsWith('/api')) {
     return res.status(404).json({ erro: 'Endpoint não encontrado' });
   }
@@ -88,7 +109,7 @@ app.use((err, req, res, _next) => {
 });
 
 // ─── Start ─────────────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log('');
   console.log('╔══════════════════════════════════════════╗');
   console.log('║       REBUSS OPS — API & Frontend        ║');
@@ -98,6 +119,9 @@ app.listen(PORT, () => {
   console.log(`║  Banco:  rebuss_ops (PostgreSQL)          ║`);
   console.log('╚══════════════════════════════════════════╝');
   console.log('');
+
+  // Executar seed do admin se necessário
+  await seedInitialAdmin();
 });
 
 export default app;
