@@ -1,0 +1,19 @@
+{
+  "type": "module",
+  "scripts": {
+    "server": "node backend/server.js",
+    "dev": "node backend/server.js",
+    "studio": "npx prisma studio",
+    "generate": "npx prisma generate",
+    "migrate": "npx prisma migrate dev"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
+    "express": "^5.1.0",
+    "pg": "^8.23.0",
+    "prisma": "^7.9.1"
+  }
+}

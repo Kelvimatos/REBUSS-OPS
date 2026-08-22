@@ -1,0 +1,230 @@
+/**
+ * REBUSS OPS — Rota: Escalas + Controle de Presença
+ * GET    /api/escalas
+ * GET    /api/escalas/:id
+ * POST   /api/escalas
+ * PUT    /api/escalas/:id
+ * DELETE /api/escalas/:id
+ * POST   /api/escalas/:id/membros
+ * PUT    /api/escalas/:escalaId/membros/:usuarioId
+ * DELETE /api/escalas/:escalaId/membros/:usuarioId
+ */
+
+import { Router } from 'express';
+import prisma from '../lib/prisma.js';
+
+const router = Router();
+
+const STATUS_VALIDOS = ['PENDENTE', 'CONFIRMADO', 'RECUSADO', 'A_CAMINHO', 'EM_LOJA', 'ATRASADO', 'FALTOU', 'CANCELADO'];
+const STATUS_ESCALA_VALIDOS = ['ABERTA', 'EM_ANDAMENTO', 'CONCLUIDA', 'CANCELADA'];
+
+// GET /api/escalas
+router.get('/', async (req, res) => {
+  try {
+    const { data, lojaId, status } = req.query;
+    const where = {};
+
+    if (lojaId) where.lojaId = lojaId;
+    if (status) where.status = status.toUpperCase();
+    if (data) {
+      const inicio = new Date(data);
+      inicio.setUTCHours(0, 0, 0, 0);
+      const fim = new Date(data);
+      fim.setUTCHours(23, 59, 59, 999);
+      where.data = { gte: inicio, lte: fim };
+    }
+
+    const escalas = await prisma.escala.findMany({
+      where,
+      orderBy: [{ data: 'desc' }, { horario: 'asc' }],
+      include: {
+        loja: true,
+        membros: {
+          include: { usuario: true },
+          orderBy: { usuario: { nome: 'asc' } },
+        },
+      },
+    });
+    res.json(escalas);
+  } catch (err) {
+    console.error('GET /api/escalas:', err);
+    res.status(500).json({ erro: 'Erro ao buscar escalas', detalhe: err.message });
+  }
+});
+
+// GET /api/escalas/:id
+router.get('/:id', async (req, res) => {
+  try {
+    const escala = await prisma.escala.findUnique({
+      where: { id: req.params.id },
+      include: {
+        loja: true,
+        membros: {
+          include: { usuario: true },
+          orderBy: { usuario: { nome: 'asc' } },
+        },
+      },
+    });
+    if (!escala) return res.status(404).json({ erro: 'Escala não encontrada' });
+    res.json(escala);
+  } catch (err) {
+    console.error('GET /api/escalas/:id:', err);
+    res.status(500).json({ erro: 'Erro ao buscar escala', detalhe: err.message });
+  }
+});
+
+// POST /api/escalas
+router.post('/', async (req, res) => {
+  try {
+    const { lojaId, data, horario, pivNecessario, observacoes, status, membros } = req.body;
+    if (!lojaId) return res.status(400).json({ erro: 'Campo obrigatório: lojaId' });
+    if (!data) return res.status(400).json({ erro: 'Campo obrigatório: data' });
+    if (!horario) return res.status(400).json({ erro: 'Campo obrigatório: horario' });
+
+    const escala = await prisma.escala.create({
+      data: {
+        lojaId,
+        data: new Date(data),
+        horario: horario.trim(),
+        pivNecessario: pivNecessario ? parseInt(pivNecessario) : null,
+        observacoes: observacoes?.trim() || null,
+        status: status?.toUpperCase() || 'ABERTA',
+        membros: membros && membros.length > 0
+          ? {
+              create: membros.map(uid => ({
+                usuarioId: typeof uid === 'string' ? uid : uid.usuarioId,
+                status: 'PENDENTE',
+              })),
+            }
+          : undefined,
+      },
+      include: {
+        loja: true,
+        membros: { include: { usuario: true } },
+      },
+    });
+    res.status(201).json(escala);
+  } catch (err) {
+    if (err.code === 'P2003') return res.status(404).json({ erro: 'Loja ou usuário não encontrado' });
+    console.error('POST /api/escalas:', err);
+    res.status(500).json({ erro: 'Erro ao criar escala', detalhe: err.message });
+  }
+});
+
+// PUT /api/escalas/:id
+router.put('/:id', async (req, res) => {
+  try {
+    const { lojaId, data, horario, pivNecessario, observacoes, status } = req.body;
+    const dadosUpdate = {};
+    if (lojaId !== undefined) dadosUpdate.lojaId = lojaId;
+    if (data !== undefined) dadosUpdate.data = new Date(data);
+    if (horario !== undefined) dadosUpdate.horario = horario.trim();
+    if (pivNecessario !== undefined) dadosUpdate.pivNecessario = pivNecessario ? parseInt(pivNecessario) : null;
+    if (observacoes !== undefined) dadosUpdate.observacoes = observacoes?.trim() || null;
+    if (status !== undefined) {
+      const s = status.toUpperCase();
+      if (!STATUS_ESCALA_VALIDOS.includes(s)) {
+        return res.status(400).json({ erro: `Status inválido. Use: ${STATUS_ESCALA_VALIDOS.join(', ')}` });
+      }
+      dadosUpdate.status = s;
+    }
+
+    const escala = await prisma.escala.update({
+      where: { id: req.params.id },
+      data: dadosUpdate,
+      include: { loja: true, membros: { include: { usuario: true } } },
+    });
+    res.json(escala);
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ erro: 'Escala não encontrada' });
+    console.error('PUT /api/escalas/:id:', err);
+    res.status(500).json({ erro: 'Erro ao atualizar escala', detalhe: err.message });
+  }
+});
+
+// DELETE /api/escalas/:id
+router.delete('/:id', async (req, res) => {
+  try {
+    await prisma.escala.delete({ where: { id: req.params.id } });
+    res.json({ mensagem: 'Escala excluída com sucesso' });
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ erro: 'Escala não encontrada' });
+    console.error('DELETE /api/escalas/:id:', err);
+    res.status(500).json({ erro: 'Erro ao excluir escala', detalhe: err.message });
+  }
+});
+
+// POST /api/escalas/:id/membros — adicionar funcionário à escala
+router.post('/:id/membros', async (req, res) => {
+  try {
+    const { usuarioId } = req.body;
+    if (!usuarioId) return res.status(400).json({ erro: 'Campo obrigatório: usuarioId' });
+
+    const membro = await prisma.escalaMembro.create({
+      data: { escalaId: req.params.id, usuarioId, status: 'PENDENTE' },
+      include: { usuario: true },
+    });
+    res.status(201).json(membro);
+  } catch (err) {
+    if (err.code === 'P2002') return res.status(409).json({ erro: 'Usuário já está nesta escala' });
+    if (err.code === 'P2003') return res.status(404).json({ erro: 'Escala ou usuário não encontrado' });
+    console.error('POST /api/escalas/:id/membros:', err);
+    res.status(500).json({ erro: 'Erro ao adicionar membro', detalhe: err.message });
+  }
+});
+
+// PUT /api/escalas/:escalaId/membros/:usuarioId — controle de presença
+router.put('/:escalaId/membros/:usuarioId', async (req, res) => {
+  try {
+    const { status, confirmou, horarioConfirmacao, chegou, horarioChegada } = req.body;
+    const data = {};
+
+    if (status !== undefined) {
+      const s = status.toUpperCase();
+      if (!STATUS_VALIDOS.includes(s)) {
+        return res.status(400).json({ erro: `Status inválido. Use: ${STATUS_VALIDOS.join(', ')}` });
+      }
+      data.status = s;
+
+      // Auto-definir flags baseado no status
+      if (s === 'CONFIRMADO') data.confirmou = true;
+      if (s === 'EM_LOJA') { data.chegou = true; data.confirmou = true; }
+      if (s === 'PENDENTE') { data.confirmou = false; data.chegou = false; }
+    }
+
+    if (confirmou !== undefined) {
+      data.confirmou = Boolean(confirmou);
+      if (data.confirmou) data.horarioConfirmacao = horarioConfirmacao ? new Date(horarioConfirmacao) : new Date();
+    }
+    if (chegou !== undefined) {
+      data.chegou = Boolean(chegou);
+      if (data.chegou) data.horarioChegada = horarioChegada ? new Date(horarioChegada) : new Date();
+    }
+
+    const membro = await prisma.escalaMembro.update({
+      where: { escalaId_usuarioId: { escalaId: req.params.escalaId, usuarioId: req.params.usuarioId } },
+      data,
+      include: { usuario: true },
+    });
+    res.json(membro);
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ erro: 'Membro não encontrado nesta escala' });
+    console.error('PUT /api/escalas/:escalaId/membros/:usuarioId:', err);
+    res.status(500).json({ erro: 'Erro ao atualizar presença', detalhe: err.message });
+  }
+});
+
+// DELETE /api/escalas/:escalaId/membros/:usuarioId
+router.delete('/:escalaId/membros/:usuarioId', async (req, res) => {
+  try {
+    await prisma.escalaMembro.deleteMany({
+      where: { escalaId: req.params.escalaId, usuarioId: req.params.usuarioId },
+    });
+    res.json({ mensagem: 'Membro removido da escala' });
+  } catch (err) {
+    console.error('DELETE /api/escalas/:escalaId/membros/:usuarioId:', err);
+    res.status(500).json({ erro: 'Erro ao remover membro', detalhe: err.message });
+  }
+});
+
+export default router;

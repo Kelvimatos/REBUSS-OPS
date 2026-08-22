@@ -1,17 +1,328 @@
-﻿/**
- * REBUSS OPS • Equipes Fixas
- * Gerenciamento local de equipes fixas por região (SP, SJC, RJ)
- * Tudo via localStorage — sem backend, sem banco de dados.
- */
-
 const EquipesModule = (() => {
   'use strict';
 
-  const STORAGE_KEY = 'rebuss_equipes_v1';
+  const STORAGE_KEY = 'rebuss_equipes_v2';
 
   const EQUIPES_DEFAULT = {
-    sp: { id: 'sp', label: 'São Paulo — SP', equipes: [] },
-    sjc: { id: 'sjc', label: 'São José dos Campos — SJC', equipes: [] },
+    sp: {
+      id: 'sp',
+      label: 'São Paulo — SP',
+      equipes: [
+        {
+          id: 'sp-elaine',
+          nome: 'EQUIPE FIXA SP — ELAINE GIANNETTI',
+          membros: [
+            { nome: 'Elaine Giannetti', funcao: 'Supervisor', matricula: '85151' },
+            { nome: 'Kailane de Jesus', funcao: 'Operador de Sistema', matricula: '88769' },
+            { nome: 'Gabriel Francisco Albuquerque', funcao: 'Chefe de Grupo', matricula: '105249' },
+            { nome: 'Priscila Flawers de Souza Adão', funcao: 'Contador', matricula: '87587' },
+            { nome: 'Felix Chaves dos Santos', funcao: 'Contador', matricula: '89938' },
+            { nome: 'Andreza Tauany da Silva', funcao: 'Contador', matricula: '101318' },
+            { nome: 'Yasmin Lima da Silva', funcao: 'Contador', matricula: '95849' },
+            { nome: 'Ana Valéria Rodrigues', funcao: 'Contador', matricula: '88888' },
+            { nome: 'Karina Mariana de Oliveira', funcao: 'Contador', matricula: '106507' },
+            { nome: 'Adriana Cristina Ferreira dos Santos', funcao: 'Contador', matricula: '82583' }
+          ]
+        },
+        {
+          id: 'sp-jefferson',
+          nome: 'EQUIPE FIXA SP — JEFFERSON KLEBER',
+          membros: [
+            { nome: 'Jefferson Kleber', funcao: 'Supervisor', matricula: '91346' },
+            { nome: 'Laiza Milene de Alencar', funcao: 'Operador', matricula: '72907' },
+            { nome: 'Paulo Cesar Monteiro da Silva Quintino', funcao: 'Operador', matricula: '98160' },
+            { nome: 'Caio Henrique de Almeida', funcao: 'Operador', matricula: '89901' },
+            { nome: 'Giovanna Natallina Matos Ferreira', funcao: 'Operador', matricula: '106617' },
+            { nome: 'Neci Ferreira de Lemos', funcao: 'Operador', matricula: '106694' }
+          ]
+        },
+        {
+          id: 'sp-luizhenrique',
+          nome: 'EQUIPE FIXA SP — LUIZ HENRIQUE',
+          membros: [
+            { nome: 'Luiz Henrique', funcao: 'Supervisor', matricula: '93456' },
+            { nome: 'Mariana Penckal', funcao: 'Chefe de Grupo', matricula: '88909' },
+            { nome: 'Dailaine Aparecida Souza Sebastiao', funcao: 'Operador', matricula: '106698' }
+          ]
+        },
+        {
+          id: 'sp-mally',
+          nome: 'EQUIPE FIXA SP — MALLY ABREU',
+          membros: [
+            { nome: 'Mally Abreu', funcao: 'Supervisor', matricula: '97627' },
+            { nome: 'Edilandia Pires Ferreira', funcao: 'Auxiliar', matricula: '94467' },
+            { nome: 'Carlos William', funcao: 'Chefe de Grupo', matricula: '84749' },
+            { nome: 'Allan Prates do Nascimento', funcao: 'Chefe de Grupo', matricula: '106421' },
+            { nome: 'Weslley José da Silva Santos', funcao: 'Operador', matricula: '102328' },
+            { nome: 'Hilda Caroline Pinel', funcao: 'Operador', matricula: '104631' },
+            { nome: 'Julio Santos Dias Leite', funcao: 'Operador', matricula: '82059' },
+            { nome: 'Matheus de Oliveira Borges', funcao: 'Operador', matricula: '100707' },
+            { nome: 'Pedro Lucas Mendes da Silva', funcao: 'Operador', matricula: '91841' }
+          ]
+        },
+        {
+          id: 'sp-vitorlima',
+          nome: 'EQUIPE FIXA SP — VITOR LIMA',
+          membros: [
+            { nome: 'Vitor Da Silva Lima', funcao: 'Supervisor', matricula: '62854' },
+            { nome: 'Renan Lins', funcao: 'Auxiliar', matricula: '84887' },
+            { nome: 'Edson Souza', funcao: 'Operador', matricula: '86197' },
+            { nome: 'João Carlos', funcao: 'Chefe de Grupo', matricula: '65887' },
+            { nome: 'Raquel Maria', funcao: 'Operador', matricula: '91900' },
+            { nome: 'Pedro Henrique Lins Do Bonfim', funcao: 'Operador', matricula: '105900' },
+            { nome: 'Natanael Vicente', funcao: 'Operador', matricula: '99583' },
+            { nome: 'Franciele Vitória', funcao: 'Operador', matricula: '88494' },
+            { nome: 'Alex Diniz', funcao: 'Operador', matricula: '101531' },
+            { nome: 'Michele Aleixo', funcao: 'Operador', matricula: '101337' },
+            { nome: 'Daniel Carneiro', funcao: 'Operador', matricula: '101342' },
+            { nome: 'Daniel Araújo', funcao: 'Chefe de Grupo', matricula: '86653' }
+          ]
+        },
+        {
+          id: 'sp-rodolpho',
+          nome: 'EQUIPE FIXA SP — RODOLPHO DE MELO',
+          membros: [
+            { nome: 'Rodolpho de Melo', funcao: 'Supervisor', matricula: '81143' },
+            { nome: 'Mayara Ianguas', funcao: 'Contador', matricula: '84548' },
+            { nome: 'Flávia Silva', funcao: 'Contador', matricula: '101382' },
+            { nome: 'Patricia Oliveira Gomes', funcao: 'Contador', matricula: '89750' },
+            { nome: 'Diego Cortez', funcao: 'Contador', matricula: '105356' },
+            { nome: 'Patrícia Queiroz', funcao: 'Contador', matricula: '104896' },
+            { nome: 'André Luiz Cândido', funcao: 'Contador', matricula: '104002' },
+            { nome: 'Joseane Ferreira Alves', funcao: 'Contador', matricula: '' },
+            { nome: 'Marcos Moraes', funcao: 'Contador', matricula: '64935' },
+            { nome: 'Ana Paula de Andrade', funcao: 'Contador', matricula: '98414' },
+            { nome: 'Jeferson da Conceicao', funcao: 'Contador', matricula: '74529' },
+            { nome: 'Arthur Nicolas Martins', funcao: 'Contador', matricula: '99524' },
+            { nome: 'Robson Aluísio', funcao: 'Contador', matricula: '103804' },
+            { nome: 'Gabriel Ferreira Prado', funcao: 'Contador', matricula: '99573' }
+          ]
+        },
+        {
+          id: 'sp-adriane',
+          nome: 'EQUIPE FIXA SP — ADRIANE CAROLINE',
+          membros: [
+            { nome: 'Adriane Caroline', funcao: 'Supervisor', matricula: '90336' },
+            { nome: 'Andrew Andriely Guedes', funcao: 'Operador de PC', matricula: '88251' },
+            { nome: 'Thauany Vitória', funcao: 'Chefe de Grupo', matricula: '104495' },
+            { nome: 'Andrew Leandro da Rocha Cavalcanti', funcao: 'Operador', matricula: '92888' },
+            { nome: 'Paola Victoria Correa', funcao: 'Operador', matricula: '88250' },
+            { nome: 'Willian Cristiano Lopes', funcao: 'Operador', matricula: '60072' },
+            { nome: 'Eduardo Laércio Martins', funcao: 'Operador', matricula: '83761' },
+            { nome: 'David Michel do Nascimento', funcao: 'Operador', matricula: '99113' },
+            { nome: 'Paloma Bianca Nascimento', funcao: 'Operador', matricula: '109118' },
+            { nome: 'Igor Lima dos Anjos', funcao: 'Operador', matricula: '105029' }
+          ]
+        },
+        {
+          id: 'sp-sheila',
+          nome: 'EQUIPE FIXA SP — SHEILA TEIXEIRA',
+          membros: [
+            { nome: 'Sheila Teixeira Alfenas', funcao: 'Supervisor', matricula: '72125' },
+            { nome: 'Tatiana Oliveira Alencar', funcao: 'Contador', matricula: '92923' },
+            { nome: 'Alexsandro Da Silva Martins', funcao: 'Contador', matricula: '94402' },
+            { nome: 'Daniela Guilherne da Silva', funcao: 'Contador', matricula: '76652' },
+            { nome: 'Ana Paula Teixeira', funcao: 'Contador', matricula: '91096' },
+            { nome: 'Katiane da Silva Paiva', funcao: 'Contador', matricula: '105516' },
+            { nome: 'Julio Soares Barbosa', funcao: 'Contador', matricula: '102099' },
+            { nome: 'Jacqueline Rodrigues Candido', funcao: 'Contador', matricula: '100916' },
+            { nome: 'Jaqueline Gonçalves da Silva', funcao: 'Contador', matricula: '62819' },
+            { nome: 'Katia Vitor Dos Santos Carvalho', funcao: 'Contador', matricula: '92859' },
+            { nome: 'Bruna Tiano Pires', funcao: 'Contador', matricula: '89735' }
+          ]
+        },
+        {
+          id: 'sp-danilo',
+          nome: 'EQUIPE FIXA SP — DANILO SANTOS',
+          membros: [
+            { nome: 'Danilo Santos', funcao: 'Supervisor', matricula: '84293' },
+            { nome: 'Carlos Weslley', funcao: 'Contador', matricula: '104968' },
+            { nome: 'Cleiton Costa da Silva', funcao: 'Contador', matricula: '98469' },
+            { nome: 'Jhow Lenno Santos', funcao: 'Contador', matricula: '98949' },
+            { nome: 'Diego Cortez', funcao: 'Contador', matricula: '106368' },
+            { nome: 'Rosangela Ferreira Leite Alves', funcao: 'Contador', matricula: '84330' },
+            { nome: 'Iraneide Albuquerque', funcao: 'Contador', matricula: '91255' },
+            { nome: 'Raphael Marquezini Antonio de Lima', funcao: 'Contador', matricula: '104654' },
+            { nome: 'Patricia Queiroz', funcao: 'Contador', matricula: '104896' },
+            { nome: 'Carlos Augusto', funcao: 'Contador', matricula: '77150' }
+          ]
+        },
+        {
+          id: 'sp-emerson',
+          nome: 'EQUIPE FIXA SP — EMERSON JOAQUIM',
+          membros: [
+            { nome: 'Emerson Joaquim', funcao: 'Supervisor', matricula: '85146' },
+            { nome: 'Rodrigo Corsi Dos Santos', funcao: 'Contador', matricula: '101339' },
+            { nome: 'Bruno Eduardo Santana Da Silva', funcao: 'Contador', matricula: '99847' },
+            { nome: 'Renan Melo Ferreira', funcao: 'Contador', matricula: '94406' },
+            { nome: 'Ana Carolline Santos Ribeiro', funcao: 'Contador', matricula: '101811' },
+            { nome: 'Lucineide Pereira Hengler', funcao: 'Contador', matricula: '74619' },
+            { nome: 'Bruna Ribeiro Bastos Silva', funcao: 'Contador', matricula: '106675' },
+            { nome: 'Debora Cristina Peralta', funcao: 'Contador', matricula: '102544' }
+          ]
+        },
+        {
+          id: 'sp-matheuscordovil',
+          nome: 'EQUIPE FIXA SP — MATHEUS CORDOVIL',
+          membros: [
+            { nome: 'Matheus Cordovil', funcao: 'Supervisor', matricula: '83005' },
+            { nome: 'Isadora Ferreira', funcao: 'Chefe de Grupo', matricula: '93313' },
+            { nome: 'Nielly Cristovam', funcao: 'Chefe de Grupo', matricula: '86888' },
+            { nome: 'Maria Niclecia', funcao: 'Chefe de Grupo', matricula: '85960' },
+            { nome: 'Lizianny Sandrielly', funcao: 'Chefe de Grupo', matricula: '105330' },
+            { nome: 'Shirley Barbosa', funcao: 'Operador', matricula: '92947' },
+            { nome: 'Gustavo Assis', funcao: 'Operador', matricula: '106869' },
+            { nome: 'Caroline Belo', funcao: 'Operador', matricula: '106870' },
+            { nome: 'Emerson Cristovam', funcao: 'Operador', matricula: '94424' }
+          ]
+        },
+        {
+          id: 'sp-alexpeixinho',
+          nome: 'EQUIPE FIXA SP — ALEX PEIXINHO',
+          membros: [
+            { nome: 'Alex Peixinho', funcao: 'Supervisor', matricula: '100334' },
+            { nome: 'Jean Carlos da Silva', funcao: 'Contador', matricula: '105230' },
+            { nome: 'Joel Leao Roque', funcao: 'Contador', matricula: '91973' },
+            { nome: 'Jonathan Souza de Oliveira', funcao: 'Contador', matricula: '107260' },
+            { nome: 'Katia Cristina Galvao', funcao: 'Contador', matricula: '102261' },
+            { nome: 'Leide Nazilde Nogueira De Aquino', funcao: 'Contador', matricula: '106400' },
+            { nome: 'Marcos Vinícius Almeida', funcao: 'Contador', matricula: '105667' },
+            { nome: 'Daiany Dionisio Rocha', funcao: 'Contador', matricula: '108808' },
+            { nome: 'Iago Patrick de Oliveira', funcao: 'Contador', matricula: '108807' },
+            { nome: 'Samanta Sanchez', funcao: 'Contador', matricula: '77658' }
+          ]
+        },
+        {
+          id: 'sp-joaquimalves',
+          nome: 'EQUIPE FIXA SP — JOAQUIM ALVES',
+          membros: [
+            { nome: 'Joaquim Alves dos Santos Souza', funcao: 'Supervisor', matricula: '107244' }
+          ]
+        },
+        {
+          id: 'sp-laizamilene',
+          nome: 'EQUIPE FIXA SP — LAIZA MILENE',
+          membros: [
+            { nome: 'Laiza Milene de Alencar', funcao: 'Supervisor', matricula: '72907' },
+            { nome: 'Kelly Sabrina Garcia Dias', funcao: 'Contador', matricula: '103683' }
+          ]
+        },
+        {
+          id: 'sp-glenda',
+          nome: 'EQUIPE FIXA SP — GLENDA',
+          membros: [
+            { nome: 'Glenda', funcao: 'Supervisor', matricula: '92460' },
+            { nome: 'Cristiane Lima Silva', funcao: 'Contador', matricula: '104566' },
+            { nome: 'Natan Alves dos Santos', funcao: 'Contador', matricula: '92556' },
+            { nome: 'Ryan Gabriel', funcao: 'Contador', matricula: '103661' },
+            { nome: 'Elaine Araujo', funcao: 'Contador', matricula: '73712' },
+            { nome: 'Emerson Cristovam', funcao: 'Contador', matricula: '94424' },
+            { nome: 'Robson Aluizio', funcao: 'Contador', matricula: '103804' },
+            { nome: 'Flavio Henrique', funcao: 'Contador', matricula: '89667' }
+          ]
+        },
+        {
+          id: 'sp-rodolfotavares',
+          nome: 'EQUIPE FIXA SP — RODOLFO TAVARES',
+          membros: [
+            { nome: 'Rodolfo Tavares', funcao: 'Supervisor', matricula: '' },
+            { nome: 'Patricia dos Santos Cavalcante', funcao: 'Contador', matricula: '93760' },
+            { nome: 'Tayna Karoline Marcolina Da Silva', funcao: 'Contador', matricula: '105376' },
+            { nome: 'Vitoria Souza Eias', funcao: 'Contador', matricula: '105374' },
+            { nome: 'Swyene Braz de Brito', funcao: 'Contador', matricula: '103270' },
+            { nome: 'Joao Carlos Silva', funcao: 'Contador', matricula: '93064' },
+            { nome: 'Dyllan Michell Inocencio Caetano Santana', funcao: 'Contador', matricula: '84327' },
+            { nome: 'Elaine Rodrigues Barbosa', funcao: 'Contador', matricula: '89662' },
+            { nome: 'Karina Mariana de Oliveira', funcao: 'Contador', matricula: '106507' }
+          ]
+        },
+        {
+          id: 'sp-alinecristina',
+          nome: 'EQUIPE FIXA SP — ALINE CRISTINA',
+          membros: [
+            { nome: 'Aline Cristina', funcao: 'Supervisor', matricula: '74188' },
+            { nome: 'Flávio Henrique de Santos Sales', funcao: 'Contador', matricula: '89667' },
+            { nome: 'Aline Torres das Neves', funcao: 'Contador', matricula: '91169' },
+            { nome: 'Simone Gonçalves Lins', funcao: 'Contador', matricula: '105573' },
+            { nome: 'Ana Clara Aparecida Lins', funcao: 'Contador', matricula: '105753' },
+            { nome: 'Caio Henrique de Almeida Silva', funcao: 'Contador', matricula: '89901' },
+            { nome: 'Michael Nogueira Pinheiro', funcao: 'Contador', matricula: '106676' },
+            { nome: 'Allexia Prates Nascimento', funcao: 'Contador', matricula: '106513' },
+            { nome: 'Leonardo Luiz de Souza Santos', funcao: 'Contador', matricula: '95212' }
+          ]
+        },
+        {
+          id: 'sp-douglasapolonio',
+          nome: 'EQUIPE FIXA SP — DOUGLAS APOLONIO',
+          membros: [
+            { nome: 'Douglas Apolonio da Silva', funcao: 'Supervisor', matricula: '65853' },
+            { nome: 'Carlos Alberto Santos Freire', funcao: 'Chefe de Grupo', matricula: '84814' },
+            { nome: 'Andréia Nascimento Carvalho', funcao: 'Chefe de Grupo', matricula: '87918' },
+            { nome: 'Rogerio Santana Souza', funcao: 'Contador', matricula: '65920' },
+            { nome: 'Vinicius Pereira da Silva Macedo', funcao: 'Contador', matricula: '97012' },
+            { nome: 'Bianca Pereira da Silva Seixas', funcao: 'Contador', matricula: '62862' },
+            { nome: 'Gabriel Reis Souza', funcao: 'Contador', matricula: '105810' },
+            { nome: 'Carlos Henrique Pereira S.', funcao: 'Contador', matricula: '103098' }
+          ]
+        },
+        {
+          id: 'sp-vagnerrodrigues',
+          nome: 'EQUIPE FIXA SP — VAGNER RODRIGUES',
+          membros: [
+            { nome: 'Vagner Rodrigues Patez', funcao: 'Supervisor', matricula: '94339' },
+            { nome: 'Giulia Teixeira Da Silva', funcao: 'Operador de Sistema', matricula: '91880' },
+            { nome: 'Alan Jonathan dos Santos Silva', funcao: 'Chefe de Grupo', matricula: '91288' },
+            { nome: 'Barbara de Souza Schumacher', funcao: 'Operador', matricula: '104180' },
+            { nome: 'Valeria Cristiane Capitani Quadro', funcao: 'Operador', matricula: '65840' },
+            { nome: 'Veronica Paula De Oliveira Pereira', funcao: 'Operador', matricula: '103792' },
+            { nome: 'Matheus Neves dos Santos', funcao: 'Operador', matricula: '103907' },
+            { nome: 'Michael Nogueira Pinheiro', funcao: 'Operador', matricula: '106676' },
+            { nome: 'Tatiana da Silva de Souza', funcao: 'Operador', matricula: '95600' },
+            { nome: 'Ana Paula Silva de Andrade', funcao: 'Operador', matricula: '98414' },
+            { nome: 'Suelen Blaia Santos', funcao: 'Operador', matricula: '86280' }
+          ]
+        }
+      ]
+    },
+    sjc: {
+      id: 'sjc',
+      label: 'São José dos Campos — SJC',
+      equipes: [
+        {
+          id: 'sjc-equipe1',
+          nome: 'EQUIPE FIXA SJC',
+          membros: [
+            { nome: 'Antonio de Souza', funcao: 'Operador', matricula: '109283' },
+            { nome: 'Caique Daniel Alves dos Santos', funcao: 'Operador', matricula: '103881' },
+            { nome: 'Carla Daniela Da Silva', funcao: 'Operador', matricula: '109504' },
+            { nome: 'Caue Santos Da Silva', funcao: 'Operador', matricula: '108793' },
+            { nome: 'Debora Ferreira do Nascimento', funcao: 'Operador', matricula: '106981' },
+            { nome: 'Diego Barcelos Baptista', funcao: 'Operador', matricula: '104321' },
+            { nome: 'Ednelson Miqueias Fernandes dos Santos', funcao: 'Operador', matricula: '104724' },
+            { nome: 'Fabricio Coelho de Lima', funcao: 'Operador', matricula: '103910' },
+            { nome: 'Francisco Pereira Batista de Oliveira', funcao: 'Operador', matricula: '106380' },
+            { nome: 'Grazielle Galvao dos Santos Goncalves', funcao: 'Operador', matricula: '105394' },
+            { nome: 'Guilherme Bretas', funcao: 'Operador', matricula: '109475' },
+            { nome: 'Guilherme Elberle de Souza', funcao: 'Operador', matricula: '109303' },
+            { nome: 'Joao Paulo de Oliveira Tavares', funcao: 'Operador', matricula: '104915' },
+            { nome: 'Jose Antonio Biavati Marengo', funcao: 'Operador', matricula: '109403' },
+            { nome: 'Juliana Cristina Diniz Goncalves', funcao: 'Operador', matricula: '103941' },
+            { nome: 'Lucas Henrique Da Costa Vergilio', funcao: 'Operador', matricula: '108212' },
+            { nome: 'Luiz Eduardo Alves Estigarribia', funcao: 'Operador', matricula: '109512' },
+            { nome: 'Luiz Henrique Leao Baptista', funcao: 'Operador', matricula: '109550' },
+            { nome: 'Matheus Ribeiro de Oliveira', funcao: 'Operador', matricula: '109367' },
+            { nome: 'Nicolas Yuri Moreira de Oliveira', funcao: 'Operador', matricula: '105512' },
+            { nome: 'Otavio Augusto de Brito Moreira', funcao: 'Operador', matricula: '104919' },
+            { nome: 'Pillar Amorim Quaresma', funcao: 'Operador', matricula: '95562' },
+            { nome: 'Saralisa Costa Moura', funcao: 'Operador', matricula: '108717' },
+            { nome: 'Wenda Mirian Alves Dos Santos Valins', funcao: 'Operador', matricula: '109662' },
+            { nome: 'Willian Barbosa Ferreira Machado', funcao: 'Operador', matricula: '109513' },
+            { nome: 'Ygor Tairone da Costa Vergilio', funcao: 'Operador', matricula: '103882' },
+            { nome: 'Suellen Helen da Costa Moura', funcao: 'Operador', matricula: '109706' }
+          ]
+        }
+      ]
+    },
     rj: {
       id: 'rj',
       label: 'Rio de Janeiro — RJ',
@@ -89,10 +400,10 @@ const EquipesModule = (() => {
     }
   };
 
-  const FUNCOES = ['Supervisor','Chefe de Grupo','Operador de Sistema','Operador de PC','Operador','Contador','Auxiliar'];
+  const FUNCOES = ['Supervisor', 'Chefe de Grupo', 'Operador de Sistema', 'Operador de PC', 'Operador', 'Contador', 'Auxiliar'];
 
   let state = {
-    regiaoAtiva: 'rj',
+    regiaoAtiva: 'sp',
     dados: null,
     searchQuery: '',
     editCtx: null,
@@ -107,7 +418,7 @@ const EquipesModule = (() => {
     const merged = JSON.parse(JSON.stringify(dados || {}));
     Object.keys(EQUIPES_DEFAULT).forEach(regiaoKey => {
       const defRegiao = EQUIPES_DEFAULT[regiaoKey];
-      if (!merged[regiaoKey]) {
+      if (!merged[regiaoKey] || !merged[regiaoKey].equipes || merged[regiaoKey].equipes.length === 0) {
         merged[regiaoKey] = JSON.parse(JSON.stringify(defRegiao));
         return;
       }
@@ -125,12 +436,15 @@ const EquipesModule = (() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return mergeDefaults(JSON.parse(raw));
-    } catch(e) {}
+      // Tentar migrar de v1 caso exista
+      const oldRaw = localStorage.getItem('rebuss_equipes_v1');
+      if (oldRaw) return mergeDefaults(JSON.parse(oldRaw));
+    } catch (e) { }
     return JSON.parse(JSON.stringify(EQUIPES_DEFAULT));
   }
 
   function saveDados() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.dados)); } catch(e) {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.dados)); } catch (e) { }
   }
 
   function getEquipeById(equipeId) {
@@ -181,7 +495,7 @@ const EquipesModule = (() => {
     t.textContent = msg;
     t.style.opacity = '1'; t.style.transform = 'translateX(-50%) translateY(0)';
     clearTimeout(t._t);
-    t._t = setTimeout(() => { t.style.opacity='0'; t.style.transform='translateX(-50%) translateY(10px)'; }, 2000);
+    t._t = setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(-50%) translateY(10px)'; }, 2000);
   }
 
   // --- Search ---
@@ -189,8 +503,8 @@ const EquipesModule = (() => {
     if (!q) return true;
     const ql = q.toLowerCase();
     return membro.nome.toLowerCase().includes(ql) ||
-           membro.funcao.toLowerCase().includes(ql) ||
-           (membro.matricula && membro.matricula.toLowerCase().includes(ql));
+      membro.funcao.toLowerCase().includes(ql) ||
+      (membro.matricula && membro.matricula.toLowerCase().includes(ql));
   }
 
   // --- Render ---
@@ -203,7 +517,8 @@ const EquipesModule = (() => {
     Object.values(state.dados).forEach(regiao => {
       const btn = document.createElement('button');
       btn.className = 'equipes-tab' + (regiao.id === state.regiaoAtiva ? ' active' : '');
-      btn.textContent = regiao.label;
+      const count = regiao.equipes.length;
+      btn.textContent = `${regiao.label} (${count})`;
       btn.dataset.regiao = regiao.id;
       btn.addEventListener('click', () => {
         state.regiaoAtiva = regiao.id;
@@ -217,10 +532,10 @@ const EquipesModule = (() => {
   }
 
   function escHtml(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  function slugFuncao(f) { return f.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z-]/g,''); }
+  function slugFuncao(f) { return f.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z-]/g, ''); }
 
   function renderEquipes() {
     const container = document.getElementById('equipes-container');

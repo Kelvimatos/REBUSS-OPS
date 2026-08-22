@@ -592,10 +592,14 @@ const App = (() => {
       view.classList.toggle('active', view.id === `view-${target}`);
     });
 
-    document.querySelectorAll('.nav-link').forEach(link => {
-      const linkRoute = link.getAttribute('data-route');
+    document.querySelectorAll('.nav-link, .mobile-nav-link').forEach(link => {
+      const linkRoute = link.getAttribute('data-route') || link.getAttribute('data-nav');
       link.classList.toggle('active', linkRoute === target);
     });
+
+    // Fechar drawer mobile ao navegar
+    const mobileDrawer = document.getElementById('mobile-nav-drawer');
+    if (mobileDrawer) mobileDrawer.classList.add('hide');
 
     window.location.hash = `#/${target}`;
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -749,12 +753,26 @@ const App = (() => {
     const btnSound = document.getElementById('btn-sound-toggle');
     const btnSwitch = document.getElementById('btn-switch-user');
     const btnShortcuts = document.getElementById('btn-shortcuts-toggle');
+    const btnMobileMenu = document.getElementById('btn-mobile-menu');
+    const mobileNavDrawer = document.getElementById('mobile-nav-drawer');
     const headerAvatarWrapper = document.getElementById('header-user-avatar-wrapper');
 
     if (btnTheme) btnTheme.addEventListener('click', toggleTheme);
     if (btnSound) btnSound.addEventListener('click', toggleSound);
     if (btnSwitch) btnSwitch.addEventListener('click', switchUser);
     if (headerAvatarWrapper) headerAvatarWrapper.addEventListener('click', openPhotoModal);
+
+    if (btnMobileMenu && mobileNavDrawer) {
+      btnMobileMenu.addEventListener('click', (e) => {
+        e.stopPropagation();
+        mobileNavDrawer.classList.toggle('hide');
+      });
+      document.addEventListener('click', (e) => {
+        if (!mobileNavDrawer.contains(e.target) && e.target !== btnMobileMenu && !btnMobileMenu.contains(e.target)) {
+          mobileNavDrawer.classList.add('hide');
+        }
+      });
+    }
 
     if (btnShortcuts) {
       btnShortcuts.addEventListener('click', () => {

@@ -126,21 +126,36 @@
     </div>
   </div>
 
-  <!-- ==========================================================================
-       HEADER PRINCIPAL DO SITE
-       ========================================================================== -->
+
   <header class="site-header">
     <div class="header-container">
-      <a href="#/inicio" class="brand-wrapper" data-nav="inicio">
-        <img src="assets/logo.png" alt="REBUSS OPS Logo" class="brand-logo">
-        <div class="brand-text-block">
-          <span class="brand-title">REBUSS OPS</span>
-          <span class="brand-subtitle">Central de Ferramentas</span>
-        </div>
-      </a>
+      <div class="header-brand-side">
+        <!-- Botão Mobile Menu Toggle -->
+        <button id="btn-mobile-menu" class="btn-icon btn-mobile-menu" title="Menu de navegação" aria-label="Abrir Menu">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
 
-      <!-- Menu Principal (Início, Copiador, Escalas, Calendário) -->
-      <nav class="nav-links">
+        <a href="#/inicio" class="brand-wrapper" data-nav="inicio">
+          <div class="brand-logo-frame">
+            <img src="assets/logo.png" alt="REBUSS OPS Logo" class="brand-logo">
+          </div>
+          <div class="brand-text-block">
+            <div class="brand-title-row">
+              <span class="brand-title">REBUSS OPS</span>
+              <span class="brand-status-dot" title="Sistema Operacional Ativo"></span>
+            </div>
+            <span class="brand-subtitle">Central de Ferramentas</span>
+          </div>
+        </a>
+      </div>
+
+      <!-- Menu Principal Desktop -->
+      <nav class="nav-links" id="desktop-nav-links">
         <a href="#/inicio" class="nav-link active" data-nav="inicio" data-route="inicio">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
             stroke-linecap="round" stroke-linejoin="round">
@@ -158,7 +173,7 @@
             <line x1="9" y1="12" x2="15" y2="12"></line>
             <line x1="9" y1="16" x2="13" y2="16"></line>
           </svg>
-          <span>Copiador de Nomes</span>
+          <span>Copiador</span>
         </a>
 
         <a href="#/escalas" class="nav-link" data-nav="escalas" data-route="escalas">
@@ -169,7 +184,7 @@
             <line x1="8" y1="2" x2="8" y2="6"></line>
             <line x1="3" y1="10" x2="21" y2="10"></line>
           </svg>
-          <span>Gerador de Escalas</span>
+          <span>Escalas</span>
         </a>
 
         <a href="#/calendario" class="nav-link" data-nav="calendario" data-route="calendario">
@@ -181,7 +196,7 @@
             <line x1="3" y1="10" x2="21" y2="10"></line>
             <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"></path>
           </svg>
-          <span>Calendário de Plantões</span>
+          <span>Calendário</span>
         </a>
 
         <a href="#/equipes" class="nav-link" data-nav="equipes" data-route="equipes">
@@ -198,61 +213,124 @@
 
       <!-- Ações do Canto Direito -->
       <div class="header-actions">
-        <!-- Perfil do Usuário Ativo com Foto Destacada -->
-        <div class="user-profile-badge">
-          <div id="header-user-avatar-wrapper" title="Clique para alterar foto de perfil">
+        <!-- Perfil do Usuário Ativo -->
+        <div class="user-profile-badge" id="header-user-badge">
+          <div id="header-user-avatar-wrapper" class="header-avatar-ring" title="Clique para alterar foto de perfil">
             <img src="assets/kelvi-matos.jpeg" alt="Foto de Perfil" class="header-user-avatar">
           </div>
-          <span class="header-user-name" id="header-user-name">Kelvi</span>
-          <button id="btn-switch-user" class="btn-switch-user" title="Trocar de usuário">Trocar</button>
+          <div class="header-user-text">
+            <span class="header-user-role">Operador</span>
+            <span class="header-user-name" id="header-user-name">Kelvi</span>
+          </div>
+          <button id="btn-switch-user" class="btn-switch-user" title="Trocar perfil de usuário">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"></path>
+            </svg>
+            <span>Trocar</span>
+          </button>
         </div>
 
-        <!-- Toggle de Tema (Claro / Escuro) -->
-        <button id="btn-theme-toggle" class="btn-icon" title="Alternar tema Claro / Escuro (Alt+T)"
-          aria-label="Alternar tema">
-          <svg class="icon-sun hide" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
-            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="5"></circle>
-            <line x1="12" y1="1" x2="12" y2="3"></line>
-            <line x1="12" y1="21" x2="12" y2="23"></line>
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-            <line x1="1" y1="12" x2="3" y2="12"></line>
-            <line x1="21" y1="12" x2="23" y2="12"></line>
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-          </svg>
-          <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
-            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-          </svg>
-        </button>
+        <div class="header-tools-group">
+          <!-- Toggle de Tema (Claro / Escuro) -->
+          <button id="btn-theme-toggle" class="btn-icon header-btn-tool" title="Alternar tema Claro / Escuro (Alt+T)"
+            aria-label="Alternar tema">
+            <svg class="icon-sun hide" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+            <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+          </button>
 
-        <!-- Toggle de Som -->
-        <button id="btn-sound-toggle" class="btn-icon" title="Ativar/Desativar som" aria-label="Alternar som">
-          <svg class="icon-sound-on" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
-            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-          </svg>
-          <svg class="icon-sound-off hide" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
-            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="1" y1="1" x2="23" y2="23"></line>
-            <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path>
-            <line x1="12" y1="19" x2="12" y2="23"></line>
-            <line x1="8" y1="23" x2="16" y2="23"></line>
-          </svg>
-        </button>
+          <!-- Toggle de Som -->
+          <button id="btn-sound-toggle" class="btn-icon header-btn-tool" title="Ativar/Desativar som"
+            aria-label="Alternar som">
+            <svg class="icon-sound-on" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            </svg>
+            <svg class="icon-sound-off hide" viewBox="0 0 24 24" width="18" height="18" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="1" y1="1" x2="23" y2="23"></line>
+              <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path>
+              <line x1="12" y1="19" x2="12" y2="23"></line>
+              <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg>
+          </button>
 
-        <!-- Botão Atalhos de Teclado -->
-        <button id="btn-shortcuts-toggle" class="btn-icon" title="Atalhos de teclado (?)" aria-label="Atalhos">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          <!-- Botão Atalhos de Teclado -->
+          <button id="btn-shortcuts-toggle" class="btn-icon header-btn-tool" title="Atalhos de teclado (?)"
+            aria-label="Atalhos">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Menu Mobile Dropdown / Drawer -->
+    <div id="mobile-nav-drawer" class="mobile-nav-drawer hide">
+      <div class="mobile-nav-content">
+        <a href="#/inicio" class="mobile-nav-link active" data-nav="inicio" data-route="inicio">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
           </svg>
-        </button>
+          <span>Início</span>
+        </a>
+        <a href="#/copiador" class="mobile-nav-link" data-nav="copiador" data-route="copiador">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+            <line x1="9" y1="12" x2="15" y2="12"></line>
+            <line x1="9" y1="16" x2="13" y2="16"></line>
+          </svg>
+          <span>Copiador de Nomes</span>
+        </a>
+        <a href="#/escalas" class="mobile-nav-link" data-nav="escalas" data-route="escalas">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+          <span>Gerador de Escalas</span>
+        </a>
+        <a href="#/calendario" class="mobile-nav-link" data-nav="calendario" data-route="calendario">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+            <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"></path>
+          </svg>
+          <span>Calendário de Plantões</span>
+        </a>
+        <a href="#/equipes" class="mobile-nav-link" data-nav="equipes" data-route="equipes">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+          <span>Equipes Fixas</span>
+        </a>
       </div>
     </div>
   </header>
@@ -336,7 +414,8 @@
             </svg>
           </div>
           <h2 class="home-tool-title">Equipes Fixas</h2>
-          <p class="home-tool-desc">Visualize, edite e copie as equipes fixas por região (SP, SJC, RJ). Tudo salvo localmente.</p>
+          <p class="home-tool-desc">Visualize, edite e copie as equipes fixas por região (SP, SJC, RJ). Tudo salvo
+            localmente.</p>
           <a href="#/equipes" class="btn btn-primary" data-nav="equipes">Abrir ferramenta</a>
         </div>
       </div>
@@ -560,18 +639,34 @@ Exemplo:
           </div>
 
           <div class="form-group">
-            <label for="escala-address">Endereço</label>
-            <input type="text" id="escala-address" placeholder="Rua, número – bairro">
+            <label for="escala-address">Endereço da Loja</label>
+            <input type="text" id="escala-address" placeholder="Ex: R. Padre Eustáquio, 2203 ou Av. Paulista, 1000"
+              autocomplete="off">
 
-            <div class="station-lookup-row">
-              <div class="station-spinner" id="escala-station-spinner"></div>
-              <div class="station-chip hidden" id="escala-station-chip">
-                <span class="line-dot" id="escala-line-dot"></span>
-                <span id="escala-station-name"></span>
-                <span id="escala-station-dist" style="opacity:0.75; font-size:0.75rem;"></span>
+            <!-- Painel Inteligente de Localização e Transporte -->
+            <div class="transit-lookup-container" id="escala-transit-container">
+              <!-- Loading com Spinner e Mensagem de Busca -->
+              <div class="transit-status-loading hide" id="escala-transit-loading">
+                <div class="station-spinner active"></div>
+                <span>Buscando localização e estações mais próximas...</span>
               </div>
-              <span class="station-error" id="escala-station-error">Nenhuma estação/terminal encontrado num raio de 30
-                km</span>
+
+              <!-- Mensagem de Nenhuma Estação de Metrô/Trem Encontrada -->
+              <div class="transit-notice-no-rail hide" id="escala-transit-no-rail">
+                <div class="transit-notice-icon">ℹ️</div>
+                <div class="transit-notice-text">
+                  <strong>Nenhuma estação de metrô ou trem encontrada próxima a este endereço.</strong>
+                  <span>Sugerindo os pontos de transporte relevantes mais próximos (terminais/ônibus/BRT):</span>
+                </div>
+              </div>
+
+              <!-- Mensagem de Erro de Endereço -->
+              <div class="transit-notice-error hide" id="escala-station-error">
+                <span>⚠️ Endereço não localizado no mapa. Verifique a digitação ou a cidade selecionada.</span>
+              </div>
+
+              <!-- Grade de Estações Mais Próximas (Top 3) -->
+              <div class="transit-cards-grid hide" id="escala-transit-cards"></div>
             </div>
           </div>
 
@@ -852,7 +947,8 @@ Exemplo:
               <input type="range" id="photo-pos-y" min="0" max="100" value="50">
             </label>
           </div>
-          <button class="btn btn-primary btn-sm" id="btn-save-photo-position" type="button">Salvar posicionamento</button>
+          <button class="btn btn-primary btn-sm" id="btn-save-photo-position" type="button">Salvar
+            posicionamento</button>
         </div>
 
         <p class="photo-modal-desc">

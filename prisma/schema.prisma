@@ -1,0 +1,103 @@
+// Prisma schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Usuario {
+  id        String   @id @default(uuid())
+  nome      String
+  matricula String?  @unique
+  telefone  String?
+  cidade    String?
+  estado    String?
+  status    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  escalas  EscalaMembro[]
+  equipes  EquipeMembro[]
+}
+
+model Equipe {
+  id        String   @id @default(uuid())
+  nome      String
+  cidade    String?
+  estado    String?
+  status    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  membros EquipeMembro[]
+}
+
+model EquipeMembro {
+  id        String @id @default(uuid())
+  equipeId  String
+  usuarioId String
+
+  equipe  Equipe  @relation(fields: [equipeId], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([equipeId, usuarioId])
+}
+
+model Loja {
+  id        String   @id @default(uuid())
+  nome      String
+  endereco  String?
+  cidade    String?
+  estado    String?
+  cep       String?
+  latitude  Float?
+  longitude Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  escalas Escala[]
+}
+
+model Escala {
+  id            String   @id @default(uuid())
+  lojaId        String
+  data          DateTime
+  horario       String
+  pivNecessario Int?
+  observacoes   String?
+  status        String   @default("ABERTA")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  loja    Loja           @relation(fields: [lojaId], references: [id])
+  membros EscalaMembro[]
+}
+
+model EscalaMembro {
+  id                 String    @id @default(uuid())
+  escalaId           String
+  usuarioId          String
+  status             String    @default("PENDENTE")
+  confirmou          Boolean   @default(false)
+  horarioConfirmacao DateTime?
+  chegou             Boolean   @default(false)
+  horarioChegada     DateTime?
+
+  escala  Escala  @relation(fields: [escalaId], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([escalaId, usuarioId])
+}
+
+model Ocorrencia {
+  id         String   @id @default(uuid())
+  escalaId   String
+  usuarioId  String
+  tipo       String
+  observacao String?
+  createdAt  DateTime @default(now())
+}
