@@ -13,7 +13,6 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
-  minify = true
   included_files = ["generated/**"]
   external_node_modules = ["@prisma/client", "@prisma/adapter-pg", "pg", "bcryptjs"]
 
