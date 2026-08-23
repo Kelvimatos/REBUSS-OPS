@@ -275,6 +275,10 @@ const App = (() => {
   }
 
   async function removeCustomPhoto(userId) {
+    if (!confirm('Deseja realmente remover sua foto de perfil personalizada e voltar para o padrão?')) {
+      return;
+    }
+
     const activeUser = getActiveUser();
     const targetUserId = userId || activeUser.id;
     const map = getUserPhotosMap();
@@ -283,7 +287,7 @@ const App = (() => {
     delete map[targetUserId];
     saveUserPhotosMap(map);
 
-    // 2. Sincronizar com AuthModule e banco de dados
+    // 2. Sincronizar com AuthModule
     if (window.AuthModule && typeof window.AuthModule.getCurrentUser === 'function') {
       const authUser = window.AuthModule.getCurrentUser();
       if (authUser) {
@@ -294,15 +298,19 @@ const App = (() => {
       }
     }
 
+    // 3. Persistir remoção no banco PostgreSQL
     if (window.RebussAPI && RebussAPI.auth && typeof RebussAPI.auth.removeFoto === 'function' && RebussAPI.getToken()) {
       try {
-        await RebussAPI.auth.removeFoto();
+        const res = await RebussAPI.auth.removeFoto();
+        if (res && res.usuario && window.AuthModule && typeof window.AuthModule.setCurrentUser === 'function') {
+          window.AuthModule.setCurrentUser(res.usuario);
+        }
       } catch (err) {
-        console.warn('Aviso: Não foi possível sincronizar remoção no servidor:', err.message);
+        console.error('Erro ao remover foto no servidor:', err);
       }
     }
 
-    // 3. Limpar estados temporários
+    // 4. Limpar estados temporários
     pendingPhotoFile = null;
     pendingPhotoDataUrl = null;
     photoPosX = 50;
@@ -316,7 +324,7 @@ const App = (() => {
     if (btnAdjust) btnAdjust.classList.add('hide');
     if (btnRemove) btnRemove.classList.add('hide');
 
-    // 4. Atualiza imediatamente o preview e todos os avatares para rebuss.png
+    // 5. Atualiza imediatamente o preview e todos os avatares para rebuss.png
     renderModalPhotoPreview(activeUser);
     updateAllUserAvatars();
 
@@ -935,6 +943,7 @@ const App = (() => {
     initUserSelection();
     initRouter();
     initShortcuts();
+    updateAllUserAvatars();
 
     // Eventos Header
     const btnTheme = document.getElementById('btn-theme-toggle');

@@ -981,8 +981,24 @@ const OperacoesModule = (() => {
   // ─────────────────────────────────────────────────────────────────────────────
   // 5.1. MODAL: EDITAR OPERAÇÃO
   // ─────────────────────────────────────────────────────────────────────────────
-  function abrirModalEditarOperacao() {
-    if (!state.operacaoAtiva) {
+  async function abrirModalEditarOperacao() {
+    let op = state.operacaoAtiva;
+
+    // Se state.operacaoAtiva não estiver no estado, tenta recuperar pelo container
+    if (!op || !op.id) {
+      const painel = document.getElementById('ops-view-painel-container');
+      const opId = painel?.dataset?.opId;
+      if (opId) {
+        try {
+          op = await RebussAPI.operacoes.get(opId);
+          state.operacaoAtiva = op;
+        } catch (err) {
+          console.error('[Operações] Erro ao carregar dados da operação para edição:', err);
+        }
+      }
+    }
+
+    if (!op || !op.id) {
       showToast('Nenhuma operação ativa selecionada para editar', 'error');
       return;
     }
@@ -994,8 +1010,13 @@ const OperacoesModule = (() => {
     const pivInput = document.getElementById('edit-op-piv');
     const cidadeInput = document.getElementById('edit-op-cidade');
     const estadoInput = document.getElementById('edit-op-estado');
+    const btnSubmit = document.getElementById('btn-submit-editar-op');
 
-    const op = state.operacaoAtiva;
+    if (btnSubmit) {
+      btnSubmit.disabled = false;
+      btnSubmit.innerHTML = 'Salvar Alterações';
+    }
+
     const nomeLoja = typeof op.loja === 'string' ? op.loja : (op.loja?.nome || op.lojaNome || '');
     const cidade = op.cidade || (op.loja && typeof op.loja === 'object' ? op.loja.cidade : '') || 'Belo Horizonte';
     const estado = op.estado || (op.loja && typeof op.loja === 'object' ? op.loja.estado : '') || 'MG';
@@ -1005,9 +1026,19 @@ const OperacoesModule = (() => {
     let dt = '';
     if (op.data) {
       try {
-        dt = new Date(op.data).toISOString().split('T')[0];
+        if (typeof op.data === 'string' && op.data.includes('T')) {
+          dt = op.data.split('T')[0];
+        } else if (typeof op.data === 'string' && op.data.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          dt = op.data;
+        } else {
+          const d = new Date(op.data);
+          const y = d.getUTCFullYear();
+          const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+          const day = String(d.getUTCDate()).padStart(2, '0');
+          dt = `${y}-${m}-${day}`;
+        }
       } catch {
-        dt = String(op.data).split('T')[0];
+        dt = '';
       }
     }
 
@@ -1024,8 +1055,18 @@ const OperacoesModule = (() => {
   }
 
   async function handleEditarOperacao(e) {
-    if (e) e.preventDefault();
-    if (!state.operacaoAtiva) return;
+    if (e) {
+      e.preventDefault();
+      if (e.stopPropagation) e.stopPropagation();
+    }
+
+    const op = state.operacaoAtiva;
+    const opId = op?.id || document.getElementById('ops-view-painel-container')?.dataset?.opId;
+
+    if (!opId) {
+      showToast('ID da operação não encontrado para atualizar', 'error');
+      return;
+    }
 
     const btnSubmit = document.getElementById('btn-submit-editar-op');
     const lojaInput = document.getElementById('edit-op-loja');
@@ -1053,22 +1094,23 @@ const OperacoesModule = (() => {
     }
 
     try {
-      const opId = state.operacaoAtiva.id;
-      await RebussAPI.operacoes.update(opId, {
+      const payload = {
         lojaNome: loja,
         data,
         horario,
         pivNecessario: piv,
         cidade,
         estado,
-      });
+      };
+
+      const res = await RebussAPI.operacoes.update(opId, payload);
 
       fecharTodosModaisOps();
       showToast('✓ Operação atualizada com sucesso!');
       await carregarDetalhesOperacao(opId);
     } catch (err) {
-      console.error('Erro ao editar operação:', err);
-      showToast(err.message || 'Erro ao atualizar operação', 'error');
+      console.error(`[Operações] PUT /api/operacoes/${opId} falhou:`, err);
+      showToast(err.message || 'Não foi possível atualizar a operação. Tente novamente.', 'error');
     } finally {
       if (btnSubmit) {
         btnSubmit.disabled = false;
@@ -1189,58 +1231,111 @@ const OperacoesModule = (() => {
     }
   }
 
-  function copiarTodosTelefonesOperacao() {
-    if (!state.operacaoAtiva || !state.operacaoAtiva.membros) {
-      showToast('Nenhuma operação ativa para copiar telefones', 'error');
-      return;
+  async function copiarTodosTelefonesOperacao() {
+    const th = document.getElementById('th-ops-copiar-telefones');
+    if (th) {
+      th.style.pointerEvents = 'none';
+      th.innerHTML = '<span style="display:inline-flex; align-items:center; gap:5px;">⏳ Carregando...</span>';
     }
 
-    const membros = state.operacaoAtiva.membros || [];
-    const telefones = [];
-    const seen = new Set();
+    try {
+      let op = state.operacaoAtiva;
 
-    for (const m of membros) {
-      const tel = (m.telefone || '').trim();
-      if (tel && !seen.has(tel)) {
-        seen.add(tel);
-        telefones.push(tel);
+      // Se a operação ou membros ainda não estiverem carregados, buscar da API
+      if (!op || !op.membros || op.membros.length === 0) {
+        const painel = document.getElementById('ops-view-painel-container');
+        const opId = painel?.dataset?.opId;
+        if (opId) {
+          try {
+            op = await RebussAPI.operacoes.get(opId);
+            state.operacaoAtiva = op;
+          } catch (fetchErr) {
+            console.error('[Operações] Erro ao carregar membros da operação:', fetchErr);
+          }
+        }
       }
-    }
 
-    if (telefones.length === 0) {
-      showToast('Nenhum telefone cadastrado nesta operação', 'error');
-      return;
-    }
+      const membros = (op && op.membros) ? op.membros : [];
+      const telefones = [];
+      const seen = new Set();
 
-    const texto = telefones.join('\n');
+      for (const m of membros) {
+        const tel = (m.telefone || m.usuario?.telefone || '').trim();
+        if (tel && tel !== '-' && tel !== '—' && !seen.has(tel)) {
+          seen.add(tel);
+          telefones.push(tel);
+        }
+      }
 
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(texto).then(() => {
+      if (telefones.length === 0) {
+        showToast('Nenhum telefone cadastrado nesta operação', 'error');
+        if (th) {
+          th.style.pointerEvents = '';
+          th.innerHTML = '<span style="display:inline-flex; align-items:center; gap:5px;">TELEFONE 📋</span>';
+        }
+        return;
+      }
+
+      const texto = telefones.join('\n');
+
+      let copied = false;
+      if (navigator.clipboard && window.isSecureContext) {
+        try {
+          await navigator.clipboard.writeText(texto);
+          copied = true;
+        } catch (clipErr) {
+          console.warn('[Operações] Falha no navigator.clipboard, tentando fallback:', clipErr);
+        }
+      }
+
+      if (!copied) {
+        copied = fallbackCopyText(texto);
+      }
+
+      if (copied) {
         showToast('✓ Telefones copiados!');
-      }).catch(() => {
-        fallbackCopyText(texto, '✓ Telefones copiados!');
-      });
-    } else {
-      fallbackCopyText(texto, '✓ Telefones copiados!');
+        if (th) {
+          th.innerHTML = '<span style="display:inline-flex; align-items:center; gap:5px; color: var(--success, #10b981);">✓ Copiado!</span>';
+          setTimeout(() => {
+            if (th) {
+              th.style.pointerEvents = '';
+              th.innerHTML = '<span style="display:inline-flex; align-items:center; gap:5px;">TELEFONE 📋</span>';
+            }
+          }, 2000);
+        }
+      } else {
+        throw new Error('Não foi possível acessar a área de transferência');
+      }
+    } catch (err) {
+      console.error('[Operações] Erro ao copiar telefones:', err);
+      showToast('Não foi possível copiar os telefones. Tente novamente.', 'error');
+      if (th) {
+        th.style.pointerEvents = '';
+        th.innerHTML = '<span style="display:inline-flex; align-items:center; gap:5px;">TELEFONE 📋</span>';
+      }
     }
   }
 
-  function fallbackCopyText(texto, msg) {
+  function fallbackCopyText(texto) {
     const ta = document.createElement('textarea');
     ta.value = texto;
     ta.style.position = 'fixed';
     ta.style.top = '-9999px';
     ta.style.left = '-9999px';
+    ta.style.opacity = '0';
     ta.setAttribute('readonly', '');
     document.body.appendChild(ta);
+    ta.focus();
     ta.select();
+    let success = false;
     try {
-      document.execCommand('copy');
-      showToast(msg);
-    } catch {
-      showToast('Erro ao copiar para a área de transferência', 'error');
+      success = document.execCommand('copy');
+    } catch (e) {
+      console.error('[Operações] Fallback execCommand copy error:', e);
+      success = false;
     }
     document.body.removeChild(ta);
+    return success;
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1577,6 +1672,7 @@ const OperacoesModule = (() => {
     fecharPainelOperacao,
     abrirModalNovaOperacao,
     abrirModalEditarOperacao,
+    handleEditarOperacao,
     abrirModalEditarMembro,
     editarTelefoneInline,
     copiarTodosTelefonesOperacao,

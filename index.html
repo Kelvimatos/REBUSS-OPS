@@ -739,13 +739,9 @@
                   <th>Código</th>
                   <th>Nome do Colaborador</th>
                   <th>Cidade</th>
-                  <th id="th-ops-copiar-telefones" class="th-clickable-copy" title="Clique para copiar todos os telefones da operação" style="cursor:pointer; user-select:none;">
+                  <th id="th-ops-copiar-telefones" class="th-clickable-copy" onclick="OperacoesModule.copiarTodosTelefonesOperacao()" title="Clique para copiar todos os telefones da operação" style="cursor:pointer; user-select:none;">
                     <span style="display:inline-flex; align-items:center; gap:5px;">
-                      TELEFONE
-                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="opacity:0.85;">
-                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                      </svg>
+                      TELEFONE 📋
                     </span>
                   </th>
                   <th>Status</th>
@@ -2187,7 +2183,7 @@ Exemplo:
         </div>
         <button class="btn-card-mini modal-ops-close" type="button">✕</button>
       </div>
-      <form id="form-editar-operacao">
+      <form id="form-editar-operacao" onsubmit="OperacoesModule.handleEditarOperacao(event); return false;">
         <div class="modal-body">
           <div class="form-row-2">
             <div class="form-group">

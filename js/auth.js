@@ -237,16 +237,48 @@ const AuthModule = (() => {
         navAdminLink.style.display = currentUser.perfil === 'ADMIN' ? '' : 'none';
       }
 
+      // Renderizar avatar no cabeçalho diretamente dos dados do usuário
+      if (headerAvatarWrapper) {
+        let photoSrc = null;
+        let posX = 50;
+        let posY = 50;
+
+        if (currentUser.fotoPerfil) {
+          const raw = String(currentUser.fotoPerfil).trim();
+          if (raw.startsWith('{') && raw.includes('"data"')) {
+            try {
+              const p = JSON.parse(raw);
+              photoSrc = p.data || null;
+              posX = p.posX ?? 50;
+              posY = p.posY ?? 50;
+            } catch {
+              photoSrc = raw;
+            }
+          } else {
+            photoSrc = raw;
+          }
+        }
+
+        if (photoSrc && !photoSrc.includes('kelvi-matos') && !photoSrc.includes('kelvi.jpeg') && !photoSrc.includes('kelvi.jpg')) {
+          headerAvatarWrapper.innerHTML = `
+            <img src="${photoSrc}" alt="${currentUser.nome || 'Usuário'}" class="header-user-avatar avatar-img" width="34" height="34" style="object-position:${posX}% ${posY}%; width:100%; height:100%; max-width:100%; max-height:100%; min-width:100%; min-height:100%; object-fit:cover; border-radius:50%; display:block;">
+          `;
+        } else {
+          headerAvatarWrapper.innerHTML = `
+            <img src="assets/rebuss.png" alt="Avatar Padrão" class="header-user-avatar avatar-img" width="34" height="34" style="width:100%; height:100%; max-width:100%; max-height:100%; min-width:100%; min-height:100%; object-fit:cover; border-radius:50%; display:block;">
+          `;
+        }
+      }
+
       if (window.App && typeof window.App.updateAllUserAvatars === 'function') {
         window.App.updateAllUserAvatars();
       }
     } else {
       if (nameEl) nameEl.textContent = 'Usuário';
       if (dropdownNameEl) dropdownNameEl.textContent = 'Usuário';
-      // Ao fazer logout, resetar avatar para rebuss.png
       if (headerAvatarWrapper) {
         headerAvatarWrapper.innerHTML = `
-          <img src="assets/rebuss.png" alt="Avatar Padrão" class="header-user-avatar avatar-img" width="34" height="34" style="width:100%;height:100%;max-width:100%;max-height:100%;min-width:100%;min-height:100%;object-fit:cover;border-radius:50%;display:block;">
+          <img src="assets/rebuss.png" alt="Avatar Padrão" class="header-user-avatar avatar-img" width="34" height="34" style="width:100%; height:100%; max-width:100%; max-height:100%; min-width:100%; min-height:100%; object-fit:cover; border-radius:50%; display:block;">
         `;
       }
     }
