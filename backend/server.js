@@ -45,23 +45,13 @@ app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 // Normaliza o caminho se a requisição for roteada via Netlify Functions ou serverless
 app.use((req, res, next) => {
-  if (req.url.startsWith('/.netlify/functions/api/')) {
-    req.url = req.url.replace('/.netlify/functions/api/', '/api/');
-  } else if (req.url === '/.netlify/functions/api') {
-    req.url = '/api';
-  } else if (!req.url.startsWith('/api/') && !req.url.startsWith('/api') && (
-    req.url.startsWith('/auth') ||
-    req.url.startsWith('/operacoes') ||
-    req.url.startsWith('/dashboard') ||
-    req.url.startsWith('/historico') ||
-    req.url.startsWith('/usuarios') ||
-    req.url.startsWith('/equipes') ||
-    req.url.startsWith('/lojas') ||
-    req.url.startsWith('/escalas') ||
-    req.url.startsWith('/ocorrencias') ||
-    req.url.startsWith('/admin')
-  )) {
-    req.url = '/api' + req.url;
+  if (req.url.startsWith('/.netlify/functions/api')) {
+    req.url = req.url.replace(/^\/\.netlify\/functions\/api/, '/api');
+    if (!req.url.startsWith('/api/') && req.url !== '/api') {
+      req.url = req.url.replace(/^\/api/, '/api/');
+    }
+  } else if (!req.url.startsWith('/api/') && req.url !== '/api') {
+    req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
   }
   next();
 });

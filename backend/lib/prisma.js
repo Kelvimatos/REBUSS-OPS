@@ -121,9 +121,6 @@ function createPrismaClient() {
 // Reutiliza instância global em ambientes serverless (Netlify Functions) para evitar conexões excessivas
 const globalForPrisma = globalThis;
 const prisma = globalForPrisma.rebussPrisma || createPrismaClient();
-
-if (process.env.NODE_ENV !== 'production' || process.env.NETLIFY) {
-  globalForPrisma.rebussPrisma = prisma;
-}
+globalForPrisma.rebussPrisma = prisma;
 
 export default prisma;
