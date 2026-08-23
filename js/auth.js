@@ -216,6 +216,7 @@ const AuthModule = (() => {
     const nameEl = document.getElementById('header-user-name');
     const roleEl = document.querySelector('.header-user-role');
     const navAdminLink = document.getElementById('nav-link-usuarios-sistema');
+    const headerAvatarWrapper = document.getElementById('header-user-avatar-wrapper');
 
     if (currentUser) {
       if (nameEl) nameEl.textContent = currentUser.nome.split(' ')[0];
@@ -227,6 +228,22 @@ const AuthModule = (() => {
       // Exibir link de gerenciamento para ADMIN
       if (navAdminLink) {
         navAdminLink.style.display = currentUser.perfil === 'ADMIN' ? '' : 'none';
+      }
+
+      if (window.App && typeof window.App.updateAllUserAvatars === 'function') {
+        window.App.updateAllUserAvatars();
+      }
+    } else {
+      // Ao fazer logout, resetar avatar para neutro
+      if (headerAvatarWrapper) {
+        headerAvatarWrapper.innerHTML = `
+          <div class="header-user-avatar-neutral">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+          </div>
+        `;
       }
     }
   }

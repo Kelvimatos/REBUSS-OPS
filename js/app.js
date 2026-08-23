@@ -8,7 +8,7 @@ const App = (() => {
 
   // Lista Oficial de Usuários
   const USERS = [
-    { id: 'kelvi', name: 'Kelvi', displayName: 'Kelvi', defaultPhoto: 'assets/kelvi-matos.jpeg', isKelvi: true },
+    { id: 'kelvi', name: 'Kelvi', displayName: 'Kelvi', defaultPhoto: null, isKelvi: true },
     { id: 'francisco', name: 'Francisco', displayName: 'Francisco', defaultPhoto: null, isKelvi: false },
     { id: 'bruno', name: 'Bruno', displayName: 'Bruno', defaultPhoto: null, isKelvi: false },
     { id: 'matheus', name: 'Matheus', displayName: 'Matheus', defaultPhoto: null, isKelvi: false },
@@ -868,6 +868,7 @@ const App = (() => {
     copyToClipboard,
     getCurrentUser: () => currentUser,
     USERS,
-    navigateTo
+    navigateTo,
+    updateAllUserAvatars
   };
 })();

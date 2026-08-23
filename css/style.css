@@ -5129,3 +5129,13 @@ input::-ms-clear {
 .dossie-stat-val.atrasos {
   color: #ea580c;
 }
+
+.header-user-avatar-neutral,
+.user-avatar-neutral {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--text-muted);
+}
