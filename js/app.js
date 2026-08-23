@@ -145,12 +145,12 @@ const App = (() => {
   }
 
   function buildAvatarImgHtml(src, alt, className, posX, posY) {
-    const style = `object-position: ${posX}% ${posY}%; width:100%; height:100%; max-width:100%; max-height:100%; object-fit:cover; border-radius:50%; display:block;`;
-    return `<img src="${src}" alt="${alt}" class="${className}" style="${style}">`;
+    const style = `object-position: ${posX}% ${posY}%; width:100%; height:100%; max-width:100%; max-height:100%; min-width:100%; min-height:100%; object-fit:cover; border-radius:50%; display:block;`;
+    return `<img src="${src}" alt="${alt}" class="${className} avatar-img" style="${style}">`;
   }
 
   function buildDefaultAvatarHtml(className = 'header-user-avatar') {
-    return `<img src="assets/rebuss.png" alt="Avatar Oficial REBUSS" class="${className}" style="width:100%; height:100%; max-width:100%; max-height:100%; object-fit:cover; border-radius:50%; display:block;">`;
+    return `<img src="assets/rebuss.png" alt="Avatar Oficial REBUSS" class="${className} avatar-img" style="width:100%; height:100%; max-width:100%; max-height:100%; min-width:100%; min-height:100%; object-fit:cover; border-radius:50%; display:block;">`;
   }
 
   function renderModalPhotoPreview(user) {
@@ -165,15 +165,15 @@ const App = (() => {
       photoPosX = pos.posX;
       photoPosY = pos.posY;
       preview.innerHTML = `
-        <div class="photo-preview-frame" id="photo-preview-frame">
-          <img src="${photoSrc}" alt="${targetUser.name || 'Usuário'}" class="photo-preview-img" style="width:100%;height:100%;object-fit:cover;object-position:${pos.posX}% ${pos.posY}%;border:none;">
+        <div class="photo-preview-frame avatar avatar-xl" id="photo-preview-frame" style="width:120px;height:120px;min-width:120px;min-height:120px;max-width:120px;max-height:120px;margin:0 auto;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;border:3px solid var(--primary);background:var(--bg-card-subtle);">
+          <img src="${photoSrc}" alt="${targetUser.name || 'Usuário'}" class="photo-preview-img avatar-img" width="120" height="120" style="width:100%;height:100%;max-width:100%;max-height:100%;min-width:100%;min-height:100%;object-fit:cover;object-position:${pos.posX}% ${pos.posY}%;border:none;display:block;border-radius:50%;">
         </div>
       `;
     } else {
       if (posPanel) posPanel.classList.add('hide');
       preview.innerHTML = `
-        <div class="photo-preview-frame" style="width:100px; height:100px; margin:0 auto; border-radius:50%; overflow:hidden; border:2px solid var(--border, #cbd5e1); background:var(--bg-card-subtle, #f1f5f9);">
-          <img src="assets/rebuss.png" alt="Avatar Oficial REBUSS" style="width:100%; height:100%; object-fit:cover;">
+        <div class="photo-preview-frame avatar avatar-xl" id="photo-preview-frame" style="width:120px;height:120px;min-width:120px;min-height:120px;max-width:120px;max-height:120px;margin:0 auto;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;border:3px solid var(--primary);background:var(--bg-card-subtle);">
+          <img src="assets/rebuss.png" alt="Avatar Oficial REBUSS" class="photo-preview-img avatar-img" width="120" height="120" style="width:100%;height:100%;max-width:100%;max-height:100%;min-width:100%;min-height:100%;object-fit:cover;display:block;border-radius:50%;">
         </div>
       `;
     }

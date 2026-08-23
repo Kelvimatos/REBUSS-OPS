@@ -246,7 +246,7 @@ const AuthModule = (() => {
       // Ao fazer logout, resetar avatar para rebuss.png
       if (headerAvatarWrapper) {
         headerAvatarWrapper.innerHTML = `
-          <img src="assets/rebuss.png" alt="Avatar Padrão" class="header-user-avatar" style="width:100%;height:100%;max-width:100%;max-height:100%;object-fit:cover;border-radius:50%;display:block;">
+          <img src="assets/rebuss.png" alt="Avatar Padrão" class="header-user-avatar avatar-img" width="34" height="34" style="width:100%;height:100%;max-width:100%;max-height:100%;min-width:100%;min-height:100%;object-fit:cover;border-radius:50%;display:block;">
         `;
       }
     }

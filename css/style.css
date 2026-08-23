@@ -131,6 +131,117 @@ body {
   display: none !important;
 }
 
+/* Regra Geral de Imagens: Nenhuma imagem pode ultrapassar o container */
+img {
+  max-width: 100%;
+  height: auto;
+  box-sizing: border-box;
+}
+
+/* ==========================================================================
+   SISTEMA DE COMPONENTES DE AVATAR (RESPONSIVO E INDESTRUTÍVEL)
+   Regra: O CONTAINER controla a dimensão visual. Imagens NUNCA expandem layout.
+   ========================================================================== */
+.avatar,
+.avatar-container,
+.header-avatar-ring,
+.photo-preview-frame,
+.user-avatar-slot,
+.member-avatar-slot,
+.dossie-avatar,
+.profile-avatar-frame {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 50% !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+  flex-shrink: 0 !important;
+  background-color: var(--bg-card-subtle) !important;
+  user-select: none !important;
+}
+
+/* Tamanhos Modulares */
+.avatar-xs {
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+  max-width: 24px !important;
+  max-height: 24px !important;
+}
+
+.avatar-sm,
+.header-avatar-ring {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  min-height: 34px !important;
+  max-width: 34px !important;
+  max-height: 34px !important;
+  border: 1.5px solid var(--primary) !important;
+}
+
+.avatar-md,
+.user-avatar-slot {
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
+  max-width: 44px !important;
+  max-height: 44px !important;
+  border: 1.5px solid var(--border) !important;
+}
+
+.avatar-lg {
+  width: 64px !important;
+  height: 64px !important;
+  min-width: 64px !important;
+  min-height: 64px !important;
+  max-width: 64px !important;
+  max-height: 64px !important;
+}
+
+.avatar-xl,
+.avatar-modal,
+.photo-preview-frame {
+  width: 120px !important;
+  height: 120px !important;
+  min-width: 120px !important;
+  min-height: 120px !important;
+  max-width: 120px !important;
+  max-height: 120px !important;
+  border: 3px solid var(--primary) !important;
+  box-shadow: 0 4px 16px rgba(11, 61, 145, 0.18) !important;
+}
+
+/* Regra Absoluta: TODAS as imagens dentro de avatares preenchem o container perfeitamente */
+.avatar img,
+.avatar-container img,
+.header-avatar-ring img,
+.photo-preview-frame img,
+.user-avatar-slot img,
+.member-avatar-slot img,
+.dossie-avatar img,
+.profile-avatar-frame img,
+img.avatar-img,
+img.header-user-avatar,
+img.user-avatar-img,
+img.photo-preview-img {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 100% !important;
+  min-height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 50% !important;
+  pointer-events: none !important;
+  box-sizing: border-box !important;
+}
+
 /* Canvas de Confetes */
 .confetti-canvas {
   position: fixed;
