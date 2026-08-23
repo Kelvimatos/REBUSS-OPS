@@ -877,7 +877,7 @@ router.post('/:id/importar-equipe', async (req, res) => {
     const { texto, colaboradores: rawColabs } = req.body;
 
     const escala = await prisma.escala.findFirst({
-      where: { id, usuarioSistemaId: req.userSistema.id },
+      where: getOperacaoWhere(id, req.userSistema),
       include: { loja: true, membros: true },
     });
 
