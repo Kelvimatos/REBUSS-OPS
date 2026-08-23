@@ -14,6 +14,8 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
   included_files = ["generated/**"]
+  external_node_modules = ["@prisma/client", "@prisma/adapter-pg", "pg", "bcryptjs"]
+
 
 
 # Redirecionar todas as chamadas /api/* para a função serverless Netlify

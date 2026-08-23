@@ -26,8 +26,9 @@ import dashboardRouter from './routes/dashboard.js';
 import operacoesRouter from './routes/operacoes.js';
 import historicoRouter from './routes/historico.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const currentModuleUrl = (typeof import.meta !== 'undefined' && import.meta && import.meta.url) ? import.meta.url : null;
+const __filename = currentModuleUrl ? fileURLToPath(currentModuleUrl) : (typeof __filename !== 'undefined' ? __filename : process.cwd());
+const __dirname = currentModuleUrl ? dirname(__filename) : (typeof __dirname !== 'undefined' ? __dirname : process.cwd());
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -117,11 +118,16 @@ app.use((err, req, res, _next) => {
 });
 
 // ─── Start (Executa apenas quando iniciado diretamente via CLI/Node) ──────────
-const isDirectRun = Boolean(process.argv[1] && (
-  fileURLToPath(import.meta.url) === process.argv[1] ||
-  process.argv[1].endsWith('backend\\server.js') ||
-  process.argv[1].endsWith('backend/server.js')
-));
+const isDirectRun = Boolean(
+  process.argv[1] && (
+    (currentModuleUrl && fileURLToPath(currentModuleUrl) === process.argv[1]) ||
+    process.argv[1].endsWith('backend\\server.js') ||
+    process.argv[1].endsWith('backend/server.js') ||
+    process.argv[1].endsWith('server.js')
+  ) &&
+  !process.env.NETLIFY &&
+  !process.env.AWS_LAMBDA_FUNCTION_NAME
+);
 
 if (isDirectRun && process.env.NODE_ENV !== 'test') {
   app.listen(PORT, async () => {
