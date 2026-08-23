@@ -75,9 +75,16 @@ router.get('/indicadores', async (req, res) => {
 
     const escalas = await prisma.escala.findMany({
       where: whereEscala,
-      include: {
-        loja: true,
-        membros: true,
+      select: {
+        id: true,
+        pivNecessario: true,
+        membros: {
+          select: {
+            confirmou: true,
+            status: true,
+            chegou: true,
+          },
+        },
       },
     });
 
@@ -155,10 +162,34 @@ router.get('/escalas-hoje', async (req, res) => {
     const escalas = await prisma.escala.findMany({
       where,
       orderBy: { horario: 'asc' },
-      include: {
-        loja: true,
+      select: {
+        id: true,
+        data: true,
+        horario: true,
+        status: true,
+        pivNecessario: true,
+        loja: {
+          select: {
+            nome: true,
+            cidade: true,
+            estado: true,
+            endereco: true,
+          },
+        },
         membros: {
-          include: { usuario: true },
+          select: {
+            id: true,
+            usuarioId: true,
+            status: true,
+            confirmou: true,
+            chegou: true,
+            usuario: {
+              select: {
+                nome: true,
+                matricula: true,
+              },
+            },
+          },
         },
       },
     });
@@ -187,8 +218,8 @@ router.get('/escalas-hoje', async (req, res) => {
         membros: e.membros.map(m => ({
           id: m.id,
           usuarioId: m.usuarioId,
-          nome: m.usuario.nome,
-          matricula: m.usuario.matricula,
+          nome: m.usuario?.nome || 'Colaborador',
+          matricula: m.usuario?.matricula || '—',
           status: m.status,
           confirmou: m.confirmou,
           chegou: m.chegou,
@@ -223,9 +254,19 @@ router.get('/alertas', async (req, res) => {
 
     const escalas = await prisma.escala.findMany({
       where,
-      include: {
-        loja: true,
-        membros: { include: { usuario: true } },
+      select: {
+        id: true,
+        horario: true,
+        pivNecessario: true,
+        loja: {
+          select: { nome: true },
+        },
+        membros: {
+          select: {
+            status: true,
+            confirmou: true,
+          },
+        },
       },
     });
 
@@ -308,12 +349,20 @@ router.get('/ranking', async (req, res) => {
           },
         },
       },
-      include: {
+      select: {
+        id: true,
+        nome: true,
+        matricula: true,
+        cidade: true,
         escalas: {
           where: {
             escala: {
               usuarioSistemaId: req.userSistema.id,
             },
+          },
+          select: {
+            status: true,
+            chegou: true,
           },
         },
       },
@@ -361,16 +410,24 @@ router.get('/equipes', async (req, res) => {
   try {
     const equipes = await prisma.equipe.findMany({
       where: { status: true },
-      include: {
+      select: {
+        id: true,
+        nome: true,
+        cidade: true,
+        estado: true,
         membros: {
-          include: {
+          select: {
             usuario: {
-              include: {
+              select: {
                 escalas: {
                   where: {
                     escala: {
                       usuarioSistemaId: req.userSistema.id,
                     },
+                  },
+                  select: {
+                    status: true,
+                    chegou: true,
                   },
                 },
               },

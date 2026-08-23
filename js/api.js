@@ -49,10 +49,9 @@ var RebussAPI = (function () {
     } catch {}
   }
 
-  async function request(endpoint, options = {}) {
-    const url = `${BASE_URL}${endpoint}`;
-    const token = getToken();
+  const inFlightRequests = new Map();
 
+  async function executeRequest(url, endpoint, options = {}, token) {
     const headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -95,6 +94,27 @@ var RebussAPI = (function () {
       }
       throw err;
     }
+  }
+
+  async function request(endpoint, options = {}) {
+    const method = (options.method || 'GET').toUpperCase();
+    const url = `${BASE_URL}${endpoint}`;
+    const token = getToken();
+
+    // Deduplicação de requisições GET simultâneas
+    if (method === 'GET') {
+      const cacheKey = `${url}|${token || ''}`;
+      if (inFlightRequests.has(cacheKey)) {
+        return inFlightRequests.get(cacheKey);
+      }
+      const promise = executeRequest(url, endpoint, options, token).finally(() => {
+        inFlightRequests.delete(cacheKey);
+      });
+      inFlightRequests.set(cacheKey, promise);
+      return promise;
+    }
+
+    return executeRequest(url, endpoint, options, token);
   }
 
   // ─── Health / Status ──────────────────────────────────────────────────────────

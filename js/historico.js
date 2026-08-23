@@ -349,17 +349,18 @@ const HistoricoModule = (() => {
       const atrasos = escala.membros.filter(m => m.status === 'ATRASADO').length;
 
       let tabelaMembros = `
-        <table class="table-admin-users" style="margin-top:16px;">
-          <thead>
-            <tr>
-              <th>Cód.</th>
-              <th>Colaborador</th>
-              <th>Cargo</th>
-              <th>Confirmação</th>
-              <th>Presença / Status</th>
-            </tr>
-          </thead>
-          <tbody>
+        <div class="hist-table-wrap">
+          <table class="table-admin-users" style="margin-top:16px;">
+            <thead>
+              <tr>
+                <th>Cód.</th>
+                <th>Colaborador</th>
+                <th>Cargo</th>
+                <th>Confirmação</th>
+                <th>Presença / Status</th>
+              </tr>
+            </thead>
+            <tbody>
       `;
 
       for (const m of escala.membros) {
@@ -387,7 +388,7 @@ const HistoricoModule = (() => {
         `;
       }
 
-      tabelaMembros += `</tbody></table>`;
+      tabelaMembros += `</tbody></table></div>`;
 
       bodyEl.innerHTML = `
         <div class="dash-escala-metrics" style="margin-bottom:16px;">
