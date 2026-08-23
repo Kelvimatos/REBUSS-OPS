@@ -145,12 +145,12 @@ const App = (() => {
   }
 
   function buildAvatarImgHtml(src, alt, className, posX, posY) {
-    const style = `object-position: ${posX}% ${posY}%; width:100%; height:100%; object-fit:cover; border-radius:50%;`;
+    const style = `object-position: ${posX}% ${posY}%; width:100%; height:100%; max-width:100%; max-height:100%; object-fit:cover; border-radius:50%; display:block;`;
     return `<img src="${src}" alt="${alt}" class="${className}" style="${style}">`;
   }
 
   function buildDefaultAvatarHtml(className = 'header-user-avatar') {
-    return `<img src="assets/rebuss.png" alt="Avatar Oficial REBUSS" class="${className}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">`;
+    return `<img src="assets/rebuss.png" alt="Avatar Oficial REBUSS" class="${className}" style="width:100%; height:100%; max-width:100%; max-height:100%; object-fit:cover; border-radius:50%; display:block;">`;
   }
 
   function renderModalPhotoPreview(user) {

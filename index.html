@@ -69,8 +69,8 @@
               <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
             </svg>
             <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password">
-            <button type="button" class="btn-toggle-password" data-target="login-password" onclick="AuthModule.togglePasswordVisibility('login-password', this)" title="Mostrar/ocultar senha">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <button type="button" class="btn-toggle-password" data-target="login-password" aria-label="Mostrar senha" title="Mostrar senha">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                 <circle cx="12" cy="12" r="3"></circle>
               </svg>
@@ -124,8 +124,8 @@
             <label for="reg-password">Senha (mín. 8 dígitos)</label>
             <div class="input-with-icon">
               <input type="password" id="reg-password" placeholder="••••••••" minlength="8" required autocomplete="new-password">
-              <button type="button" class="btn-toggle-password" data-target="reg-password" onclick="AuthModule.togglePasswordVisibility('reg-password', this)">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <button type="button" class="btn-toggle-password" data-target="reg-password" aria-label="Mostrar senha" title="Mostrar senha">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                   <circle cx="12" cy="12" r="3"></circle>
                 </svg>
@@ -137,8 +137,8 @@
             <label for="reg-password-confirm">Confirmar Senha</label>
             <div class="input-with-icon">
               <input type="password" id="reg-password-confirm" placeholder="••••••••" minlength="8" required autocomplete="new-password">
-              <button type="button" class="btn-toggle-password" data-target="reg-password-confirm" onclick="AuthModule.togglePasswordVisibility('reg-password-confirm', this)">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <button type="button" class="btn-toggle-password" data-target="reg-password-confirm" aria-label="Mostrar senha" title="Mostrar senha">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                   <circle cx="12" cy="12" r="3"></circle>
                 </svg>
@@ -292,7 +292,7 @@
           <!-- Perfil do Usuário Ativo com Dropdown -->
           <div class="user-profile-badge" id="header-user-badge">
             <div id="header-user-avatar-wrapper" class="header-avatar-ring">
-              <img src="assets/rebuss.png" alt="Avatar Padrão" class="header-user-avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+              <img src="assets/rebuss.png" alt="Avatar Padrão" class="header-user-avatar" style="width:100%;height:100%;max-width:100%;max-height:100%;object-fit:cover;border-radius:50%;display:block;">
             </div>
             <div class="header-user-text">
               <span class="header-user-role">ADMIN</span>
