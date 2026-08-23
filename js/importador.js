@@ -199,7 +199,7 @@ const ImportadorModule = (() => {
         estado: a.estado,
         pivNecessario: parseInt(document.getElementById('prev-piv')?.value, 10) || a.pivNecessario,
         colaboradores: a.colaboradores,
-        usuarioResponsavel: currentUser ? currentUser.nome : 'Kelvi Matos',
+        usuarioResponsavel: currentUser ? currentUser.nome : 'Usuário',
       };
 
       const api = window.RebussAPI || (typeof RebussAPI !== 'undefined' ? RebussAPI : null);

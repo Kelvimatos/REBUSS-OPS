@@ -8,12 +8,8 @@ const App = (() => {
 
   // Lista Oficial de Usuários
   const USERS = [
-    { id: 'kelvi', name: 'Kelvi', displayName: 'Kelvi', defaultPhoto: null, isKelvi: true },
-    { id: 'francisco', name: 'Francisco', displayName: 'Francisco', defaultPhoto: null, isKelvi: false },
-    { id: 'bruno', name: 'Bruno', displayName: 'Bruno', defaultPhoto: null, isKelvi: false },
-    { id: 'matheus', name: 'Matheus', displayName: 'Matheus', defaultPhoto: null, isKelvi: false },
-    { id: 'arthur', name: 'Arthur', displayName: 'Arthur', defaultPhoto: null, isKelvi: false },
-    { id: 'alexandre', name: 'Alexandre', displayName: 'Alexandre', defaultPhoto: null, isKelvi: false }
+    { id: 'operador_1', name: 'Operador 1', displayName: 'Operador 1', defaultPhoto: null },
+    { id: 'operador_2', name: 'Operador 2', displayName: 'Operador 2', defaultPhoto: null },
   ];
 
   let currentUser = null;
@@ -35,6 +31,21 @@ const App = (() => {
   let dragStartPosX = 50;
   let dragStartPosY = 50;
 
+  // Auto-purga de caches legados de foto
+  (function purgeLegacyAvatarStorage() {
+    try {
+      const purgeTag = 'rebuss_avatar_clean_v4_official';
+      if (!localStorage.getItem(purgeTag)) {
+        localStorage.removeItem('rebuss_user_photos');
+        localStorage.removeItem('rebuss_clean_init_v2');
+        localStorage.removeItem('rebuss_clean_init_v3');
+        localStorage.removeItem('rebuss_user_photo_kelvi');
+        localStorage.removeItem('rebuss_custom_avatar_kelvi');
+        localStorage.setItem(purgeTag, '1');
+      }
+    } catch (e) {}
+  })();
+
   function getActiveUser() {
     if (window.AuthModule && typeof window.AuthModule.getCurrentUser === 'function') {
       const authUser = window.AuthModule.getCurrentUser();
@@ -44,7 +55,8 @@ const App = (() => {
           name: authUser.nome || 'Usuário',
           displayName: authUser.nome || 'Usuário',
           email: authUser.email,
-          perfil: authUser.perfil
+          perfil: authUser.perfil,
+          fotoPerfil: authUser.fotoPerfil || null,
         };
       }
     }
@@ -53,23 +65,34 @@ const App = (() => {
       const found = USERS.find(u => u.id === savedUserId);
       if (found) return found;
     }
-    return currentUser || { id: 'default_user', name: 'Usuário', displayName: 'Usuário' };
+    return currentUser || { id: 'default_user', name: 'Usuário', displayName: 'Usuário', fotoPerfil: null };
   }
 
   function normalizePhotoEntry(entry) {
     if (!entry) return null;
-    if (typeof entry === 'string') return { data: entry, posX: 50, posY: 50 };
-    if (entry.data) return { data: entry.data, posX: entry.posX ?? 50, posY: entry.posY ?? 50 };
-    return null;
+    let dataStr = null;
+    let posX = 50;
+    let posY = 50;
+
+    if (typeof entry === 'string') {
+      dataStr = entry;
+    } else if (entry.data) {
+      dataStr = entry.data;
+      posX = entry.posX ?? 50;
+      posY = entry.posY ?? 50;
+    }
+
+    if (!dataStr) return null;
+    // Eliminar qualquer referência à imagem antiga
+    if (dataStr.includes('kelvi-matos') || dataStr.includes('kelvi.jpeg') || dataStr.includes('kelvi.jpg')) {
+      return null;
+    }
+
+    return { data: dataStr, posX, posY };
   }
 
   function getUserPhotosMap() {
     try {
-      if (!localStorage.getItem('rebuss_clean_init_v2')) {
-        localStorage.removeItem('rebuss_user_photos');
-        localStorage.setItem('rebuss_clean_init_v2', '1');
-        return {};
-      }
       return JSON.parse(localStorage.getItem('rebuss_user_photos')) || {};
     } catch {
       return {};
@@ -88,14 +111,20 @@ const App = (() => {
     const targetUser = user || getActiveUser();
     if (!targetUser) return null;
 
-    // 1. Se estiver no AuthModule com foto no banco
+    // 1. Prioridade: fotoPerfil do usuário autenticado no AuthModule
     if (window.AuthModule && typeof window.AuthModule.getCurrentUser === 'function') {
       const authUser = window.AuthModule.getCurrentUser();
-      if (authUser && (authUser.id === targetUser.id || authUser.email === targetUser.email)) {
+      if (authUser && (authUser.id === targetUser.id || authUser.email === targetUser.email || !targetUser.id)) {
         if (authUser.fotoPerfil) {
-          return normalizePhotoEntry(authUser.fotoPerfil);
+          const norm = normalizePhotoEntry(authUser.fotoPerfil);
+          if (norm) return norm;
         }
       }
+    }
+
+    if (targetUser.fotoPerfil) {
+      const norm = normalizePhotoEntry(targetUser.fotoPerfil);
+      if (norm) return norm;
     }
 
     const userId = typeof targetUser === 'string' ? targetUser : (targetUser.id || targetUser.email);
@@ -121,7 +150,7 @@ const App = (() => {
   }
 
   function buildDefaultAvatarHtml(className = 'header-user-avatar') {
-    return `<img src="assets/rebuss.png" alt="Avatar Padrão" class="${className}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">`;
+    return `<img src="assets/rebuss.png" alt="Avatar Oficial REBUSS" class="${className}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">`;
   }
 
   function renderModalPhotoPreview(user) {
@@ -144,7 +173,7 @@ const App = (() => {
       if (posPanel) posPanel.classList.add('hide');
       preview.innerHTML = `
         <div class="photo-preview-frame" style="width:100px; height:100px; margin:0 auto; border-radius:50%; overflow:hidden; border:2px solid var(--border, #cbd5e1); background:var(--bg-card-subtle, #f1f5f9);">
-          <img src="assets/rebuss.png" alt="Avatar Padrão" style="width:100%; height:100%; object-fit:cover;">
+          <img src="assets/rebuss.png" alt="Avatar Oficial REBUSS" style="width:100%; height:100%; object-fit:cover;">
         </div>
       `;
     }
@@ -672,14 +701,15 @@ const App = (() => {
     const btnAdjust = document.getElementById('btn-adjust-photo-position');
     const btnRemove = document.getElementById('btn-remove-user-photo');
 
+    const userName = (user && (user.nome || user.name || user.displayName)) || 'Usuário';
     if (userNameEl) {
-      userNameEl.textContent = user.name || user.displayName || 'Usuário';
+      userNameEl.textContent = userName;
     }
     if (posPanel) posPanel.classList.add('hide');
     pendingPhotoDataUrl = null;
     pendingPhotoFile = null;
 
-    const hasCustom = !!getUserPhotoEntry(user);
+    const hasCustom = !!getUserPhotoSrc(user);
     if (btnAdjust) btnAdjust.classList.toggle('hide', !hasCustom);
     if (btnRemove) btnRemove.classList.toggle('hide', !hasCustom);
 
