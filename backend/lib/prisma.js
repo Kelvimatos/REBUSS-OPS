@@ -11,11 +11,9 @@ import pg from 'pg';
 const { Pool } = pg;
 
 /**
- * Sanitiza e normaliza a URL do PostgreSQL para garantir compatibilidade com
- * o parser nativo de URL do Node.js, Prisma e driver pg.
- * - Remove aspas/espaços acidentais no início/fim
+ * Sanitiza e normaliza a URL do PostgreSQL:
+ * - Remove aspas e espaços acidentais no início/fim
  * - Aplica URL encoding seguro em senhas/usuários com caracteres especiais (@, #, $, %, etc.)
- * - Garante parâmetros de SSL para conexões de nuvem
  */
 function sanitizeDatabaseUrl(rawUrl) {
   if (!rawUrl || typeof rawUrl !== 'string') return '';
@@ -76,20 +74,36 @@ function sanitizeDatabaseUrl(rawUrl) {
   }
 }
 
+/**
+ * Remove parâmetros sslmode da query string da URL para evitar que o parser interno
+ * do pg/pg-connection-string sobreponha a configuração explícita de ssl ({ rejectUnauthorized: false })
+ * por 'verify-full' (que rejeita a cadeia de certificados intermediários do Supabase).
+ */
+function preparePgConnectionString(url) {
+  if (!url || typeof url !== 'string') return '';
+  return url
+    .replace(/([?&])sslmode=[^&]*(&|$)/g, '$1')
+    .replace(/[?&]$/, '')
+    .replace(/\?&/, '?');
+}
+
 function createPrismaClient() {
   const rawConnectionString = process.env.DATABASE_URL || '';
   const connectionString = sanitizeDatabaseUrl(rawConnectionString);
 
-  // Atualiza process.env.DATABASE_URL com a URL limpa/encodada para que o Prisma Engine utilize
+  // Atualiza process.env.DATABASE_URL normalizada para os mecanismos internos do Prisma
   if (connectionString) {
     process.env.DATABASE_URL = connectionString;
   }
 
   const isLocal = !connectionString || connectionString.includes('localhost') || connectionString.includes('127.0.0.1');
 
+  // Para conexões remotas (Supabase), remove sslmode da URL do pg para garantir que o Pool
+  // utilize a configuração explícita ssl: { rejectUnauthorized: false }, mantendo TLS ativo
+  const pgConnectionString = isLocal ? connectionString : preparePgConnectionString(connectionString);
+
   const pool = new Pool({
-    connectionString,
-    // Pool dimensionado para Serverless / Supabase Transaction Pooler
+    connectionString: pgConnectionString,
     max: process.env.DB_POOL_MAX ? parseInt(process.env.DB_POOL_MAX, 10) : 4,
     idleTimeoutMillis: 20000,
     connectionTimeoutMillis: 10000,
