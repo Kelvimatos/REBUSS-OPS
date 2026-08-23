@@ -1,9 +1,6 @@
 /**
- * REBUSS OPS — Rotas de Importação Inteligente e Gestão de Operações
- * POST /api/operacoes/analisar
- * POST /api/operacoes/importar
- * PUT  /api/operacoes/:id/finalizar
- * GET  /api/operacoes/logs
+ * REBUSS OPS — Rotas de Gestão Operacional em Tempo Real
+ * Controle Diário de Operações: Criar -> Importar Equipe -> Acompanhar Status -> Finalizar -> Histórico -> Dashboard
  */
 
 import { Router } from 'express';
@@ -11,172 +8,215 @@ import prisma from '../lib/prisma.js';
 
 const router = Router();
 
-// Helper para parsing inteligente de texto do Admin Rebuss / WhatsApp / Planilha
-function parseOperacaoText(rawText) {
-  if (!rawText || !rawText.trim()) {
-    throw new Error('Texto de importação vazio');
+const STATUS_VALIDOS = [
+  'PENDENTE',
+  'CONFIRMADO',
+  'A_CAMINHO',
+  'EM_LOJA',
+  'ATRASADO',
+  'FALTOU',
+  'RECUSOU',
+  'CANCELADO'
+];
+
+/**
+ * Limpa e normaliza o nome do colaborador, garantindo que contenha SOMENTE o nome.
+ * Nunca junta matrícula, telefone, cidade, status, PH, I, código.
+ */
+function cleanPersonName(rawText) {
+  if (!rawText) return '';
+  let text = rawText;
+
+  // 1. Se veio no formato [104136 - Leandro Tameirao Pereira](URL), extrair apenas o texto interno
+  const mdLinkMatch = text.match(/\[(.*?)\](?:\(.*?\))?/);
+  if (mdLinkMatch) {
+    text = mdLinkMatch[1];
   }
 
-  const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
-  const textFull = rawText;
+  // 2. Remover códigos no início (ex: "104136 - ", "100654 – ")
+  text = text.replace(/^\s*\d{3,8}\s*[-–—:]\s*/, '');
 
-  // 1. Identificar Cidade e Estado antes da loja
-  let cidade = 'São Paulo';
-  let estado = 'SP';
-  const locMatch = textFull.match(/([A-Za-zÀ-ÖØ-öø-ÿ\s]+)\s*[\/\-]\s*([A-Z]{2})/);
-  if (locMatch) {
-    cidade = locMatch[1].replace(/^(📍|em|na cidade de)\s*/i, '').trim();
-    estado = locMatch[2].toUpperCase().trim();
-  } else if (/Rio de Janeiro/i.test(textFull)) {
-    cidade = 'Rio de Janeiro';
-    estado = 'RJ';
-  } else if (/Belo Horizonte/i.test(textFull)) {
-    cidade = 'Belo Horizonte';
-    estado = 'MG';
-  } else if (/Brasília|Brasilia/i.test(textFull)) {
-    cidade = 'Brasília';
-    estado = 'DF';
-  } else if (/Goiânia|Goiania/i.test(textFull)) {
-    cidade = 'Goiânia';
-    estado = 'GO';
-  }
-
-  // 2. Identificar Loja
-  let lojaNome = '';
-  const storePatterns = [
-    /(?:Loja|Unidade|Store|Local|🏪)?\s*([A-Za-zÀ-ÖØ-öø-ÿ\s]+(?:\d{2,5}|Centro|Shopping|Express|Hiper|Super))/i,
-    /([A-ZÀ-Úa-zà-ú\s]+(?:\d{2,5}))/,
-    /^([A-Za-zÀ-ÖØ-öø-ÿ\s]{3,35}\s+\d{2,5})/m,
-  ];
-
-  for (const pat of storePatterns) {
-    const match = textFull.match(pat);
-    if (match && match[1]) {
-      const candidate = match[1].replace(/^(Loja|Unidade|Local|🏪)\s*:?\s*/i, '').trim();
-      if (!/^(Operador|Supervisor|Contador|Escaneador|Chefe|Líder)/i.test(candidate)) {
-        lojaNome = candidate;
-        break;
-      }
-    }
-  }
-
-  if (!lojaNome && lines.length > 0) {
-    const firstLine = lines[0].replace(/^[📅🏪📍\s*]+/, '').trim();
-    if (
-      firstLine.length < 50 &&
-      !firstLine.match(/^\d{1,2}[\/\-]/) &&
-      !firstLine.match(/^(Operador|Supervisor|Contador|Escaneador|Chefe|Líder|Confirmado)/i) &&
-      !firstLine.match(/^\d{4,6}\b/)
-    ) {
-      lojaNome = firstLine;
-    } else {
-      lojaNome = `Operação ${cidade} (${new Date().toLocaleDateString('pt-BR')})`;
-    }
-  }
-
-  // 3. Identificar Data (com validação estrita de dia 1-31 e mês 1-12)
-  let dataOperacao = new Date();
-  const dateMatch = textFull.match(/\b(0?[1-9]|[12][0-9]|3[01])[\/\-\.](0?[1-9]|1[012])(?:[\/\-\.](20\d\d|\d{2}))?\b/);
-  if (dateMatch) {
-    const dia = parseInt(dateMatch[1], 10);
-    const mes = parseInt(dateMatch[2], 10) - 1;
-    let ano = dateMatch[3] ? parseInt(dateMatch[3], 10) : new Date().getFullYear();
-    if (ano < 100) ano += 2000;
-    dataOperacao = new Date(Date.UTC(ano, mes, dia, 12, 0, 0));
-  } else {
-    dataOperacao.setUTCHours(12, 0, 0, 0);
-  }
-
-  // 4. Identificar Horário
-  let horario = '18:30';
-  const timeMatch = textFull.match(/(?:às|as|horário|horario|⏰)?\s*([01]?\d|2[0-3])[:hH]([0-5]\d)/);
-  if (timeMatch) {
-    const hh = timeMatch[1].padStart(2, '0');
-    const mm = timeMatch[2];
-    horario = `${hh}:${mm}`;
-  }
-
-// Helper específico para limpar nomes de colaboradores do Admin Rebuss
-function cleanPersonName(rawLine, matricula) {
-  let text = rawLine;
-
-  // 1. Remover numeração de lista no início (ex: "1.", "1 -", "01.")
+  // 3. Remover numeração de lista no início (ex: "1.", "1 -", "01.")
   text = text.replace(/^\s*\d+[\.\)\-]?\s*/, '');
 
-  // 2. Remover a matrícula específica se fornecida
-  if (matricula) {
-    text = text.replace(new RegExp(`\\b${matricula}\\b\\s*[-–—:]?\\s*`, 'g'), ' ');
-  }
-
-  // 3. Remover parênteses e seus conteúdos (ex: (PH: 1.410, I: 73), (SP), (MG))
+  // 4. Remover parênteses e seus conteúdos (ex: (PH: 1.410, I: 73), (SP), (MG), (31) 9999-9999)
   text = text.replace(/\([^)]*\)/g, ' ');
 
-  // 4. Remover status operacionais residuais
+  // 5. Remover URLs residuais
+  text = text.replace(/https?:\/\/\S+/gi, ' ');
+
+  // 6. Remover status operacionais residuais
   const statusPatterns = [
-    /\b(No\s+confirmado|Não\s+confirmado|Nao\s+confirmado|Confirmado|Pendente|Presente|Faltou|Falta|Recusou|Recusado|Em\s+Loja|Desistência|Substituído|Substituido)\b/gi,
+    /\b(No\s+confirmado|Não\s+confirmado|Nao\s+confirmado|Confirmado|Confirmada|Pendente|Presente|Faltou|Falta|Recusou|Recusado|Em\s+Loja|A\s+Caminho|Atrasado|Atrasada|Desistência|Substituído|Substituido|Cancelado)\b/gi,
   ];
   for (const sp of statusPatterns) {
     text = text.replace(sp, ' ');
   }
 
-  // 5. Remover cargos conhecidos
+  // 7. Remover cargos conhecidos
   const cargoKeywords = [
+    'SUPERVISOR GENERAL', 'SUPERVISOR GERAL', 'SUPERVISOR', 'SUPERVISORA',
     'CHEFE DE GRUPO', 'OP. SISTEMA', 'OPERADOR DE SISTEMA',
-    'SUPERVISOR', 'SUPERVISORA', 'CONTADOR', 'CONTADORA',
-    'OPERADOR', 'OPERADORA', 'AUXILIAR', 'ESCANEADOR', 'ESCANEADORA',
-    'LÍDER', 'CONFERENTE', 'AUDITOR', 'AUDITORA'
+    'CONTADOR', 'CONTADORA', 'OPERADOR', 'OPERADORA', 'AUXILIAR',
+    'ESCANEADOR', 'ESCANEADORA', 'LÍDER', 'CONFERENTE', 'AUDITOR', 'AUDITORA'
   ];
   for (const ck of cargoKeywords) {
     text = text.replace(new RegExp(`\\b${ck}\\b`, 'gi'), ' ');
   }
 
-  // 6. Remover cidades conhecidas e siglas de estados
+  // 8. Remover cidades conhecidas e siglas de estados
   const citiesAndStates = [
     'Rio de Janeiro', 'São Paulo', 'Belo Horizonte', 'Juiz de Fora',
     'Curitiba', 'Brasília', 'Brasilia', 'Goiânia', 'Goiania',
-    'Campinas', 'Niterói', 'Niteroi'
+    'Campinas', 'Niterói', 'Niteroi', 'Salvador', 'Fortaleza', 'Recife'
   ];
   for (const cs of citiesAndStates) {
     text = text.replace(new RegExp(`\\b${cs}\\b`, 'gi'), ' ');
   }
   text = text.replace(/\b(RJ|SP|MG|DF|GO|PR|BA|CE|PE|RS|SC|ES)\b/gi, ' ');
 
-  // 7. Remover telefones no formato com espaços (ex: 32 99919 4901 ou 21 96999 5330)
-  text = text.replace(/\b\d{2}\s+9?\d{4,5}\s+\d{4}\b/g, ' ');
-  text = text.replace(/\b9?\d{4,5}[\s\-.]?\d{4}\b/g, ' ');
+  // 9. Remover telefones e números isolados
+  text = text.replace(/\b\d{2}\s*9?\d{4,5}\s*[-.]?\s*\d{4}\b/g, ' ');
+  text = text.replace(/\b\d{4,12}\b/g, ' ');
 
-  // 8. Remover números de documentos / CPFs / RGs / dígitos soltos
-  text = text.replace(/\b\d+\b/g, ' ');
+  // 10. Remover pontuações residuais
+  text = text.replace(/[\*\-\—\–\:\;\,\/\\\|\#\_\•\[\]\(\)]/g, ' ');
 
-  // 9. Remover pontuações residuais
-  text = text.replace(/[\*\-\—\–\:\;\,\/\\\|\#\_\•\[\]]/g, ' ');
-
-  // 10. Normalizar espaços em branco
+  // 11. Normalizar espaços em branco
   text = text.replace(/\s+/g, ' ').trim();
 
   return text;
 }
 
-  // 5. Identificar Colaboradores
-  const colaboradores = [];
-  const matriculaSet = new Set();
+/**
+ * Parser de texto da equipe do Admin Rebuss / WhatsApp / Tabela
+ */
+function parseEquipeText(rawText) {
+  if (!rawText || !rawText.trim()) {
+    throw new Error('Texto de importação vazio');
+  }
 
-  const cargoKeywords = [
-    'SUPERVISOR', 'SUPERVISORA', 'CHEFE DE GRUPO', 'OP. SISTEMA', 'OPERADOR DE SISTEMA',
-    'CONTADOR', 'CONTADORA', 'OPERADOR', 'OPERADORA', 'AUXILIAR', 'ESCANEADOR', 'ESCANEADORA',
-    'LÍDER', 'CONFERENTE', 'AUDITOR', 'AUDITORA'
-  ];
+  const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+  const colaboradores = [];
+  const processedKeys = new Set();
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // Verificar se há matrícula (4 a 8 dígitos)
-    const matMatch = line.match(/\b(\d{4,8})\b/);
-    if (matMatch) {
-      const matricula = matMatch[1];
-      if (matriculaSet.has(matricula)) continue;
+    // Ignorar linhas de cabeçalho de tabela Markdown (ex: "| Cargo | Nome | ... |")
+    if (/^\|\s*Cargo\b/i.test(line) || /^\|\s*[-:\s|]+\s*$/i.test(line)) {
+      continue;
+    }
 
-      let cargo = 'Operador';
+    let cargo = 'Operador';
+    let codigo = null;
+    let nome = '';
+    let matricula = null;
+    let cidade = '';
+    let telefone = '';
+    let statusImportado = 'PENDENTE';
+
+    // CASO 1: Linha formatada com pipes (| Col1 | Col2 | Col3 ...)
+    if (line.includes('|')) {
+      const parts = line.split('|').map(p => p.trim()).filter(p => p !== '');
+      if (parts.length >= 2) {
+        // Encontrar a parte que contém o cargo
+        const cargoCand = parts[0];
+        if (cargoCand && !cargoCand.startsWith('[')) {
+          cargo = cargoCand.replace(/[*_]/g, '').trim() || 'Operador';
+        }
+
+        // Encontrar a parte que contém o [Código - Nome](URL) ou Nome
+        let personCand = parts.find(p => p.includes('[') || /\b\d{4,8}\s*[-–—]/.test(p)) || parts[1] || '';
+
+        // Extrair código
+        const codeMatch = personCand.match(/(?:\[|\b)(\d{4,8})\s*[-–—]/) || line.match(/\[(\d{4,8})\s*[-–—]/);
+        if (codeMatch) {
+          codigo = codeMatch[1];
+        }
+
+        // Extrair Nome limpo
+        nome = cleanPersonName(personCand);
+
+        // Extrair Matrícula (procura nas outras colunas um número com 5 a 12 dígitos)
+        for (let pIdx = 1; pIdx < parts.length; pIdx++) {
+          const p = parts[pIdx];
+          const matM = p.match(/^\b(\d{6,12})\b$/);
+          if (matM && matM[1] !== codigo) {
+            matricula = matM[1];
+            break;
+          }
+        }
+
+        // Extrair Telefone
+        for (const p of parts) {
+          const telM = p.match(/(?:\(?\d{2}\)?\s*)?9?\d{4,5}[-.\s]?\d{4}/);
+          if (telM && !matricula?.includes(telM[0])) {
+            telefone = telM[0].trim();
+            break;
+          }
+        }
+
+        // Extrair Cidade
+        for (const p of parts) {
+          if (/Belo Horizonte|São Paulo|Rio de Janeiro|Brasília|Goiânia|Juiz de Fora|Curitiba|Campinas/i.test(p)) {
+            cidade = p.replace(/[*_]/g, '').trim();
+            break;
+          }
+        }
+
+        // Extrair Status
+        const lastPart = parts[parts.length - 1];
+        if (/No\s+confirmado|Não\s+confirmado|Nao\s+confirmado/i.test(line)) {
+          statusImportado = 'PENDENTE';
+        } else if (/Confirmad[oa]|Presente|Em\s+Loja/i.test(lastPart) || /Confirmad[oa]/i.test(line)) {
+          statusImportado = 'CONFIRMADO';
+        }
+      }
+    }
+
+    // CASO 2: Linha sem pipes (texto livre ou lista do WhatsApp/Admin)
+    if (!nome) {
+      // Procurar código e nome no padrão [104136 - Leandro Tameirao](...)
+      const matchBracket = line.match(/\[(\d{4,8})\s*[-–—:]\s*([^\]]+)\]/);
+      if (matchBracket) {
+        codigo = matchBracket[1];
+        nome = cleanPersonName(matchBracket[2]);
+      } else {
+        const matchCodeLine = line.match(/\b(\d{4,8})\s*[-–—:]\s*([A-Za-zÀ-ÖØ-öø-ÿ\s]{3,})/);
+        if (matchCodeLine) {
+          codigo = matchCodeLine[1];
+          nome = cleanPersonName(matchCodeLine[2]);
+        }
+      }
+
+      // Se ainda não achou nome, tenta limpar a linha toda
+      if (!nome) {
+        const cleaned = cleanPersonName(line);
+        if (cleaned.length >= 3 && !/^\d+$/.test(cleaned)) {
+          nome = cleaned;
+        }
+      }
+
+      // Matrícula
+      const matMatch = line.match(/\b(\d{6,12})\b/);
+      if (matMatch && matMatch[1] !== codigo) {
+        matricula = matMatch[1];
+      }
+
+      // Telefone
+      const telMatch = line.match(/(?:\(?\d{2}\)?\s*)?9?\d{4,5}[-.\s]?\d{4}/);
+      if (telMatch) {
+        telefone = telMatch[0];
+      }
+
+      // Cargo
+      const cargoKeywords = [
+        'SUPERVISOR GENERAL', 'SUPERVISOR GERAL', 'SUPERVISOR', 'SUPERVISORA',
+        'CHEFE DE GRUPO', 'OP. SISTEMA', 'OPERADOR DE SISTEMA',
+        'CONTADOR', 'CONTADORA', 'OPERADOR', 'OPERADORA', 'AUXILIAR',
+        'ESCANEADOR', 'ESCANEADORA', 'LÍDER', 'CONFERENTE', 'AUDITOR'
+      ];
       for (const ck of cargoKeywords) {
         if (new RegExp(`\\b${ck}\\b`, 'i').test(line)) {
           cargo = ck.charAt(0).toUpperCase() + ck.slice(1).toLowerCase();
@@ -184,93 +224,54 @@ function cleanPersonName(rawLine, matricula) {
         }
       }
 
-      // Se o cargo estiver na linha anterior (formato padrão do Admin Rebuss)
-      if (cargo === 'Operador' && i > 0) {
-        for (const ck of cargoKeywords) {
-          if (new RegExp(`\\b${ck}\\b`, 'i').test(lines[i - 1])) {
-            cargo = ck.charAt(0).toUpperCase() + ck.slice(1).toLowerCase();
-            break;
-          }
-        }
+      // Status
+      if (/No\s+confirmado|Não\s+confirmado|Nao\s+confirmado/i.test(line)) {
+        statusImportado = 'PENDENTE';
+      } else if (/Confirmad[oa]|Presente|Em\s+Loja/i.test(line)) {
+        statusImportado = 'CONFIRMADO';
       }
+    }
 
-      // Verificar status de confirmação (na linha atual ou na linha seguinte)
-      let confirmou = false;
-      if (/Confirmado|Presente|Em Loja/i.test(line) && !/No\s+confirmado|Não\s+confirmado|Nao\s+confirmado/i.test(line)) {
-        confirmou = true;
-      } else if (i + 1 < lines.length && /Confirmado|Presente|Em Loja/i.test(lines[i + 1]) && !/No\s+confirmado|Não\s+confirmado|Nao\s+confirmado/i.test(lines[i + 1])) {
-        confirmou = true;
-      }
-
-      // Extrair o nome 100% limpo
-      let nome = cleanPersonName(line, matricula);
-
-      // Se o nome ficou vazio, tenta pegar da próxima linha se for texto
-      if ((!nome || nome.length < 3) && i + 1 < lines.length) {
-        const nextLine = lines[i + 1];
-        if (!nextLine.match(/^\d+$/) && !/Confirmado|Pendente/i.test(nextLine) && nextLine.length > 2) {
-          nome = cleanPersonName(nextLine, matricula);
-        }
-      }
-
-      if (nome && nome.length >= 2) {
-        matriculaSet.add(matricula);
+    // Validação mínima para incluir o colaborador
+    if (nome && nome.length >= 2) {
+      const key = codigo || matricula || nome.toLowerCase();
+      if (!processedKeys.has(key)) {
+        processedKeys.add(key);
         colaboradores.push({
-          matricula,
+          codigo: codigo || null,
           nome,
-          cargo,
-          confirmou,
-          status: confirmou ? 'CONFIRMADO' : 'PENDENTE',
+          cargo: cargo || 'Operador',
+          matricula: matricula || null,
+          cidade: cidade || '',
+          telefone: telefone || '',
+          status: statusImportado,
+          confirmou: statusImportado === 'CONFIRMADO',
         });
       }
     }
   }
 
-  return {
-    lojaNome,
-    dataOperacao: dataOperacao.toISOString(),
-    horario,
-    cidade,
-    estado,
-    pivNecessario: colaboradores.length || 10,
-    colaboradores,
-    totalIdentificados: colaboradores.length,
-  };
+  return colaboradores;
 }
 
-// POST /api/operacoes/analisar (Pré-visualização da importação)
+// ─────────────────────────────────────────────────────────────────────────────
+// ENDPOINTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+// POST /api/operacoes/analisar (Pré-visualização da equipe sem gravar)
 router.post('/analisar', async (req, res) => {
   try {
     const { texto } = req.body;
-    if (!texto) return res.status(400).json({ erro: 'Envie o texto para análise' });
+    if (!texto || !texto.trim()) {
+      return res.status(400).json({ erro: 'Envie o texto da equipe para análise' });
+    }
 
-    const analise = parseOperacaoText(texto);
-
-    // Verificar se já existe uma operação para essa loja + data + horário
-    const dt = new Date(analise.dataOperacao);
-    const startOfDay = new Date(dt);
-    startOfDay.setUTCHours(0, 0, 0, 0);
-    const endOfDay = new Date(dt);
-    endOfDay.setUTCHours(23, 59, 59, 999);
-
-    const operacaoExistente = await prisma.escala.findFirst({
-      where: {
-        loja: { nome: { contains: analise.lojaNome, mode: 'insensitive' } },
-        data: { gte: startOfDay, lte: endOfDay },
-      },
-      include: { loja: true, membros: { include: { usuario: true } } },
-    });
+    const colaboradores = parseEquipeText(texto);
 
     res.json({
-      analise,
-      jaExiste: Boolean(operacaoExistente),
-      operacaoExistente: operacaoExistente ? {
-        id: operacaoExistente.id,
-        loja: operacaoExistente.loja.nome,
-        horario: operacaoExistente.horario,
-        status: operacaoExistente.status,
-        totalMembrosAtuais: operacaoExistente.membros.length,
-      } : null,
+      sucesso: true,
+      totalColaboradores: colaboradores.length,
+      colaboradores,
     });
   } catch (err) {
     console.error('POST /api/operacoes/analisar:', err);
@@ -278,31 +279,285 @@ router.post('/analisar', async (req, res) => {
   }
 });
 
-// POST /api/operacoes/importar (Grava no PostgreSQL sem duplicar)
-router.post('/importar', async (req, res) => {
+// Função utilitária para listar e formatar operações com filtros
+async function listarOperacoesComFiltro(query) {
+  const { periodo = 'hoje', data, loja, cidade, estado, status, limit = 100, page = 1 } = query;
+
+  const now = new Date();
+  const todayStart = new Date(now);
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const todayEnd = new Date(now);
+  todayEnd.setUTCHours(23, 59, 59, 999);
+
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setUTCDate(tomorrowStart.getUTCDate() + 1);
+  const tomorrowEnd = new Date(todayEnd);
+  tomorrowEnd.setUTCDate(tomorrowEnd.getUTCDate() + 1);
+
+  const where = {};
+
+  // Filtro de Período / Data
+  if (data) {
+    const customDate = new Date(data);
+    const start = new Date(customDate);
+    start.setUTCHours(0, 0, 0, 0);
+    const end = new Date(customDate);
+    end.setUTCHours(23, 59, 59, 999);
+    where.data = { gte: start, lte: end };
+  } else if (periodo === 'hoje') {
+    where.data = { gte: todayStart, lte: todayEnd };
+  } else if (periodo === 'amanha') {
+    where.data = { gte: tomorrowStart, lte: tomorrowEnd };
+  } else if (periodo === 'proximas') {
+    where.data = { gte: todayStart };
+    where.status = { not: 'FINALIZADA' };
+  } else if (periodo === 'finalizadas') {
+    where.status = 'FINALIZADA';
+  } else if (periodo === 'todas') {
+    // Sem restrição de data primária
+  }
+
+  // Filtro de Loja
+  if (loja && loja.trim()) {
+    where.loja = {
+      ...where.loja,
+      nome: { contains: loja.trim(), mode: 'insensitive' },
+    };
+  }
+
+  // Filtro de Cidade
+  if (cidade && cidade !== 'todas' && cidade.trim()) {
+    where.loja = {
+      ...where.loja,
+      cidade: { contains: cidade.trim(), mode: 'insensitive' },
+    };
+  }
+
+  // Filtro de Estado
+  if (estado && estado !== 'todos' && estado.trim()) {
+    where.loja = {
+      ...where.loja,
+      estado: { contains: estado.trim(), mode: 'insensitive' },
+    };
+  }
+
+  // Filtro de Status da Operação
+  if (status && status !== 'todos') {
+    if (status === 'FINALIZADA') {
+      where.status = 'FINALIZADA';
+    } else if (status === 'EM_ANDAMENTO') {
+      where.status = { not: 'FINALIZADA' };
+    }
+  }
+
+  const take = Math.min(200, parseInt(limit, 10) || 100);
+  const skip = ((parseInt(page, 10) || 1) - 1) * take;
+
+  const operacoes = await prisma.escala.findMany({
+    where,
+    orderBy: [{ data: 'desc' }, { horario: 'asc' }],
+    take,
+    skip,
+    include: {
+      loja: true,
+      membros: {
+        include: { usuario: true },
+        orderBy: [{ cargo: 'desc' }, { usuario: { nome: 'asc' } }],
+      },
+      statusLogs: {
+        orderBy: { criadoEm: 'desc' },
+        take: 5,
+      },
+    },
+  });
+
+  return operacoes.map(op => {
+    const pivNecessario = op.pivNecessario || op.membros.length || 0;
+    const confirmados = op.membros.filter(m => m.status === 'CONFIRMADO' || m.confirmou).length;
+    const aCaminho = op.membros.filter(m => m.status === 'A_CAMINHO').length;
+    const emLoja = op.membros.filter(m => m.status === 'EM_LOJA' || m.chegou).length;
+    const faltas = op.membros.filter(m => m.status === 'FALTOU').length;
+    const atrasados = op.membros.filter(m => m.status === 'ATRASADO').length;
+    const pendentes = op.membros.filter(m => m.status === 'PENDENTE').length;
+
+    const deficit = Math.max(0, pivNecessario - emLoja);
+    const pivIncompleto = emLoja < pivNecessario && op.status !== 'FINALIZADA';
+
+    let statusBadge = 'Completo';
+    if (op.status === 'FINALIZADA') {
+      statusBadge = 'Finalizada';
+    } else if (pivIncompleto && emLoja > 0) {
+      statusBadge = 'PIV Incompleto';
+    } else if (pendentes > 0) {
+      statusBadge = 'Pendente';
+    } else if (emLoja === 0 && confirmados > 0) {
+      statusBadge = 'Confirmada';
+    }
+
+    return {
+      id: op.id,
+      lojaId: op.loja.id,
+      loja: op.loja.nome,
+      cidade: op.loja.cidade || 'São Paulo',
+      estado: op.loja.estado || 'SP',
+      endereco: op.loja.endereco || '',
+      data: op.data,
+      horario: op.horario,
+      status: op.status,
+      observacoes: op.observacoes,
+      pivNecessario,
+      confirmados,
+      aCaminho,
+      emLoja,
+      faltas,
+      atrasados,
+      pendentes,
+      deficit,
+      pivIncompleto,
+      statusBadge,
+      totalMembros: op.membros.length,
+      membros: op.membros.map(m => ({
+        id: m.id,
+        usuarioId: m.usuario.id,
+        codigo: m.codigo || m.usuario.codigo || '—',
+        nome: m.usuario.nome,
+        matricula: m.usuario.matricula || '—',
+        cargo: m.cargo || 'Operador',
+        cidade: m.cidade || m.usuario.cidade || '',
+        telefone: m.telefone || m.usuario.telefone || '',
+        status: m.status,
+        confirmou: m.confirmou,
+        chegou: m.chegou,
+        historicoStatus: m.historicoStatus ? JSON.parse(m.historicoStatus) : [],
+      })),
+    };
+  });
+}
+
+// GET /api/operacoes (Lista operações com filtros de período, loja, cidade, status)
+router.get('/', async (req, res) => {
+  try {
+    const formatadas = await listarOperacoesComFiltro(req.query);
+    res.json(formatadas);
+  } catch (err) {
+    console.error('GET /api/operacoes:', err);
+    res.status(500).json({ erro: 'Erro ao buscar operações', detalhe: err.message });
+  }
+});
+
+// GET /api/operacoes/hoje (Compatibilidade direta)
+router.get('/hoje', async (req, res) => {
+  try {
+    const query = { ...req.query, periodo: req.query.periodo || 'hoje' };
+    const formatadas = await listarOperacoesComFiltro(query);
+    res.json(formatadas);
+  } catch (err) {
+    console.error('GET /api/operacoes/hoje:', err);
+    res.status(500).json({ erro: 'Erro ao buscar operações', detalhe: err.message });
+  }
+});
+
+// GET /api/operacoes/:id (Detalhes completos da operação)
+router.get('/:id', async (req, res) => {
+  try {
+    const op = await prisma.escala.findUnique({
+      where: { id: req.params.id },
+      include: {
+        loja: true,
+        membros: {
+          include: { usuario: true },
+          orderBy: [{ cargo: 'desc' }, { usuario: { nome: 'asc' } }],
+        },
+        statusLogs: {
+          orderBy: { criadoEm: 'desc' },
+        },
+      },
+    });
+
+    if (!op) {
+      return res.status(404).json({ erro: 'Operação não encontrada' });
+    }
+
+    const pivNecessario = op.pivNecessario || op.membros.length || 0;
+    const confirmados = op.membros.filter(m => m.status === 'CONFIRMADO' || m.confirmou).length;
+    const aCaminho = op.membros.filter(m => m.status === 'A_CAMINHO').length;
+    const emLoja = op.membros.filter(m => m.status === 'EM_LOJA' || m.chegou).length;
+    const faltas = op.membros.filter(m => m.status === 'FALTOU').length;
+    const atrasados = op.membros.filter(m => m.status === 'ATRASADO').length;
+    const pendentes = op.membros.filter(m => m.status === 'PENDENTE').length;
+    const deficit = Math.max(0, pivNecessario - emLoja);
+
+    res.json({
+      id: op.id,
+      lojaId: op.loja.id,
+      loja: op.loja.nome,
+      cidade: op.loja.cidade || 'São Paulo',
+      estado: op.loja.estado || 'SP',
+      endereco: op.loja.endereco || '',
+      data: op.data,
+      horario: op.horario,
+      pivNecessario,
+      status: op.status,
+      observacoes: op.observacoes,
+      importadoPor: op.importadoPor,
+      importadoEm: op.importadoEm,
+      finalizadoEm: op.finalizadoEm,
+      metricas: {
+        pivNecessario,
+        confirmados,
+        aCaminho,
+        emLoja,
+        faltas,
+        atrasados,
+        pendentes,
+        deficit,
+        pivIncompleto: emLoja < pivNecessario && op.status !== 'FINALIZADA',
+      },
+      membros: op.membros.map(m => ({
+        id: m.id,
+        usuarioId: m.usuario.id,
+        codigo: m.codigo || m.usuario.codigo || '—',
+        nome: m.usuario.nome,
+        matricula: m.usuario.matricula || '—',
+        cargo: m.cargo || 'Operador',
+        cidade: m.cidade || m.usuario.cidade || '',
+        telefone: m.telefone || m.usuario.telefone || '',
+        status: m.status,
+        confirmou: m.confirmou,
+        chegou: m.chegou,
+        historicoStatus: m.historicoStatus ? JSON.parse(m.historicoStatus) : [],
+      })),
+      timeline: op.statusLogs,
+    });
+  } catch (err) {
+    console.error('GET /api/operacoes/:id:', err);
+    res.status(500).json({ erro: 'Erro ao buscar operação', detalhe: err.message });
+  }
+});
+
+// POST /api/operacoes (Criar Nova Operação)
+router.post('/', async (req, res) => {
   try {
     const {
       lojaNome,
-      dataOperacao,
+      data,
       horario,
+      pivNecessario,
       cidade,
       estado,
-      pivNecessario,
-      colaboradores = [],
-      usuarioResponsavel,
+      endereco,
+      observacoes,
+      usuarioCriador
     } = req.body;
 
-    if (!lojaNome || !dataOperacao) {
-      return res.status(400).json({ erro: 'Loja e data são obrigatórios' });
+    if (!lojaNome || !data || !horario) {
+      return res.status(400).json({ erro: 'Loja, Data e Horário são obrigatórios' });
     }
 
-    const dt = new Date(dataOperacao);
-    const startOfDay = new Date(dt);
-    startOfDay.setUTCHours(0, 0, 0, 0);
-    const endOfDay = new Date(dt);
-    endOfDay.setUTCHours(23, 59, 59, 999);
+    const dt = new Date(data);
+    dt.setUTCHours(12, 0, 0, 0);
 
-    // 1. Localizar ou criar Loja
+    // 1. Localizar ou Criar Loja
     let loja = await prisma.loja.findFirst({
       where: { nome: { contains: lojaNome.trim(), mode: 'insensitive' } },
     });
@@ -311,170 +566,335 @@ router.post('/importar', async (req, res) => {
       loja = await prisma.loja.create({
         data: {
           nome: lojaNome.trim(),
-          cidade: cidade || 'São Paulo',
-          estado: estado || 'SP',
+          cidade: cidade?.trim() || 'São Paulo',
+          estado: estado?.trim().toUpperCase() || 'SP',
+          endereco: endereco?.trim() || null,
         },
+      });
+    } else if (endereco && !loja.endereco) {
+      loja = await prisma.loja.update({
+        where: { id: loja.id },
+        data: { endereco: endereco.trim() },
       });
     }
 
-    // 2. Verificar se a operação já existe para a mesma loja e data
-    let escala = await prisma.escala.findFirst({
-      where: {
+    // 2. Criar Operação
+    const escala = await prisma.escala.create({
+      data: {
         lojaId: loja.id,
-        data: { gte: startOfDay, lte: endOfDay },
+        data: dt,
+        horario: horario.trim(),
+        pivNecessario: pivNecessario ? parseInt(pivNecessario, 10) : 5,
+        observacoes: observacoes?.trim() || null,
+        status: 'ABERTA',
+        importadoPor: usuarioCriador || 'Kelvi Matos',
+        importadoEm: new Date(),
+        statusLogs: {
+          create: {
+            tipo: 'CRIACAO',
+            descricao: `Operação ${loja.nome} criada com PIV de ${pivNecessario || 5} pessoas.`,
+          },
+        },
       },
-      include: { membros: true },
+      include: {
+        loja: true,
+        membros: { include: { usuario: true } },
+      },
     });
 
-    let isAtualizacao = Boolean(escala);
+    res.status(201).json({
+      sucesso: true,
+      mensagem: `Operação ${loja.nome} criada com sucesso!`,
+      operacao: escala,
+    });
+  } catch (err) {
+    console.error('POST /api/operacoes:', err);
+    res.status(500).json({ erro: 'Erro ao criar operação', detalhe: err.message });
+  }
+});
+
+// POST /api/operacoes/:id/importar-equipe (Cola e vincula a equipe à operação)
+router.post('/:id/importar-equipe', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { texto, colaboradores: rawColabs } = req.body;
+
+    const escala = await prisma.escala.findUnique({
+      where: { id },
+      include: { loja: true, membros: true },
+    });
 
     if (!escala) {
-      escala = await prisma.escala.create({
-        data: {
-          lojaId: loja.id,
-          data: dt,
-          horario: horario || '18:30',
-          pivNecessario: pivNecessario || colaboradores.length,
-          status: 'ABERTA',
-          importadoPor: usuarioResponsavel || 'Admin Rebuss',
-          importadoEm: new Date(),
-        },
-        include: { membros: true },
-      });
-    } else {
-      // Se já existe, atualiza os dados básicos sem apagar histórico
-      escala = await prisma.escala.update({
-        where: { id: escala.id },
-        data: {
-          horario: horario || escala.horario,
-          pivNecessario: pivNecessario || escala.pivNecessario,
-        },
-        include: { membros: true },
-      });
+      return res.status(404).json({ erro: 'Operação não encontrada' });
     }
 
-    // 3. Processar Colaboradores (Criar/Atualizar na tabela Usuario e vincular na Escala)
-    let totalNovos = 0;
-    let totalAtualizados = 0;
-    let erros = 0;
+    let colaboradores = rawColabs;
+    if (!colaboradores || colaboradores.length === 0) {
+      if (!texto) return res.status(400).json({ erro: 'Envie o texto da equipe ou a lista de colaboradores' });
+      colaboradores = parseEquipeText(texto);
+    }
+
+    let novosCadastrados = 0;
+    let vinculados = 0;
 
     for (const colab of colaboradores) {
-      try {
-        const nomeLimpo = cleanPersonName(colab.nome, colab.matricula);
-        if (!nomeLimpo) continue;
+      const nomeLimpo = cleanPersonName(colab.nome);
+      if (!nomeLimpo) continue;
 
-        let user = null;
-        if (colab.matricula) {
-          user = await prisma.usuario.findUnique({
-            where: { matricula: colab.matricula },
+      // 1. Localizar usuário existente pelo código, matrícula ou nome
+      let user = null;
+      if (colab.codigo) {
+        user = await prisma.usuario.findFirst({
+          where: { codigo: colab.codigo },
+        });
+      }
+      if (!user && colab.matricula) {
+        user = await prisma.usuario.findFirst({
+          where: { matricula: colab.matricula },
+        });
+      }
+      if (!user) {
+        user = await prisma.usuario.findFirst({
+          where: { nome: { equals: nomeLimpo, mode: 'insensitive' } },
+        });
+      }
+
+      // 2. Se não existir, criar novo cadastro
+      if (!user) {
+        user = await prisma.usuario.create({
+          data: {
+            nome: nomeLimpo,
+            codigo: colab.codigo || null,
+            matricula: colab.matricula || null,
+            telefone: colab.telefone || null,
+            cidade: colab.cidade || escala.loja.cidade || 'São Paulo',
+            estado: escala.loja.estado || 'SP',
+          },
+        });
+        novosCadastrados++;
+      } else {
+        // Atualizar dados que faltavam
+        const updateData = {};
+        if (colab.codigo && !user.codigo) updateData.codigo = colab.codigo;
+        if (colab.matricula && !user.matricula) updateData.matricula = colab.matricula;
+        if (colab.telefone && !user.telefone) updateData.telefone = colab.telefone;
+        if (colab.cidade && !user.cidade) updateData.cidade = colab.cidade;
+
+        if (Object.keys(updateData).length > 0) {
+          await prisma.usuario.update({
+            where: { id: user.id },
+            data: updateData,
           });
         }
+      }
 
-        if (!user) {
-          user = await prisma.usuario.findFirst({
-            where: { nome: { equals: nomeLimpo, mode: 'insensitive' } },
-          });
-        }
+      // 3. Vincular na EscalaMembro
+      const statusInicial = colab.status || 'PENDENTE';
+      const initialHistory = JSON.stringify([
+        { status: statusInicial, horario: new Date().toISOString() }
+      ]);
 
-        if (!user) {
-          user = await prisma.usuario.create({
-            data: {
-              nome: nomeLimpo,
-              matricula: colab.matricula || null,
-              cidade: cidade || 'São Paulo',
-              estado: estado || 'SP',
-            },
-          });
-          totalNovos++;
-        } else {
-          totalAtualizados++;
-          // Atualizar matrícula ou corrigir nome se necessário
-          const updateData = {};
-          if (colab.matricula && !user.matricula) updateData.matricula = colab.matricula;
-          if (user.nome !== nomeLimpo && !user.email) updateData.nome = nomeLimpo;
-
-          if (Object.keys(updateData).length > 0) {
-            await prisma.usuario.update({
-              where: { id: user.id },
-              data: updateData,
-            });
-          }
-        }
-
-        // Vincular na EscalaMembro com o cargo
-        const membroExistente = escala.membros.find(m => m.usuarioId === user.id);
-        if (!membroExistente) {
-          await prisma.escalaMembro.create({
-            data: {
-              escalaId: escala.id,
-              usuarioId: user.id,
-              cargo: colab.cargo || 'Operador',
-              status: colab.status || 'PENDENTE',
-              confirmou: Boolean(colab.confirmou),
-              chegou: Boolean(colab.chegou),
-            },
-          });
-        } else if (colab.cargo) {
-          await prisma.escalaMembro.update({
-            where: { id: membroExistente.id },
-            data: { cargo: colab.cargo },
-          });
-        }
-      } catch (colabErr) {
-        console.error('Erro ao processar colaborador:', colab, colabErr);
-        erros++;
+      const membroExistente = escala.membros.find(m => m.usuarioId === user.id);
+      if (!membroExistente) {
+        await prisma.escalaMembro.create({
+          data: {
+            escalaId: escala.id,
+            usuarioId: user.id,
+            codigo: colab.codigo || user.codigo || null,
+            cargo: colab.cargo || 'Operador',
+            status: statusInicial,
+            confirmou: statusInicial === 'CONFIRMADO',
+            cidade: colab.cidade || user.cidade || null,
+            telefone: colab.telefone || user.telefone || null,
+            historicoStatus: initialHistory,
+          },
+        });
+        vinculados++;
+      } else {
+        await prisma.escalaMembro.update({
+          where: { id: membroExistente.id },
+          data: {
+            cargo: colab.cargo || membroExistente.cargo,
+            codigo: colab.codigo || membroExistente.codigo,
+            telefone: colab.telefone || membroExistente.telefone,
+            cidade: colab.cidade || membroExistente.cidade,
+          },
+        });
       }
     }
 
-    // 4. Registrar Log de Importação
-    const log = await prisma.importacaoLog.create({
+    // Registrar Log na Timeline
+    await prisma.statusLog.create({
       data: {
-        usuarioNome: usuarioResponsavel || 'Kelvi Matos',
-        lojaNome: loja.nome,
-        dataOperacao: dt,
-        horarioOperacao: horario,
-        totalProcessados: colaboradores.length,
-        totalNovos,
-        totalAtualizados,
-        erros,
         escalaId: escala.id,
-        detalhes: isAtualizacao ? 'Operação existente sincronizada com sucesso' : 'Nova operação importada',
+        tipo: 'IMPORTACAO',
+        descricao: `Equipe importada com ${colaboradores.length} colaboradores (${novosCadastrados} novos cadastros).`,
       },
     });
 
     res.json({
       sucesso: true,
-      mensagem: isAtualizacao
-        ? `Operação ${loja.nome} sincronizada com sucesso!`
-        : `Nova operação ${loja.nome} registrada no histórico permanente!`,
-      escalaId: escala.id,
-      log,
+      mensagem: `${colaboradores.length} colaboradores importados para ${escala.loja.nome}!`,
       totalProcessados: colaboradores.length,
-      totalNovos,
-      totalAtualizados,
-      erros,
+      novosCadastrados,
+      vinculados,
     });
   } catch (err) {
-    console.error('POST /api/operacoes/importar:', err);
-    res.status(500).json({ erro: 'Erro ao importar operação', detalhe: err.message });
+    console.error('POST /api/operacoes/:id/importar-equipe:', err);
+    res.status(500).json({ erro: 'Erro ao importar equipe', detalhe: err.message });
   }
 });
 
-// PUT /api/operacoes/:id/finalizar (Finaliza a operação e trava no histórico)
+// PUT /api/operacoes/:id/membros/:usuarioId/status (Atualização Rápida de Status com Registro Histórico)
+router.put('/:id/membros/:usuarioId/status', async (req, res) => {
+  try {
+    const { id: escalaId, usuarioId } = req.params;
+    const { status } = req.body;
+
+    if (!status || !STATUS_VALIDOS.includes(status.toUpperCase())) {
+      return res.status(400).json({ erro: `Status inválido. Use: ${STATUS_VALIDOS.join(', ')}` });
+    }
+
+    const s = status.toUpperCase();
+
+    const membro = await prisma.escalaMembro.findUnique({
+      where: { escalaId_usuarioId: { escalaId, usuarioId } },
+      include: { usuario: true, escala: { include: { loja: true } } },
+    });
+
+    if (!membro) {
+      return res.status(404).json({ erro: 'Membro não encontrado nesta operação' });
+    }
+
+    const agora = new Date();
+    const updateData = {
+      status: s,
+    };
+
+    if (s === 'CONFIRMADO') {
+      updateData.confirmou = true;
+      updateData.horarioConfirmacao = agora;
+    } else if (s === 'EM_LOJA') {
+      updateData.chegou = true;
+      updateData.confirmou = true;
+      updateData.horarioChegada = agora;
+    } else if (s === 'PENDENTE') {
+      updateData.confirmou = false;
+      updateData.chegou = false;
+    }
+
+    // Histórico detalhado de transição
+    let historico = [];
+    try {
+      if (membro.historicoStatus) {
+        historico = JSON.parse(membro.historicoStatus);
+      }
+    } catch {
+      historico = [];
+    }
+
+    historico.push({
+      status: s,
+      horario: agora.toISOString(),
+      statusAnterior: membro.status,
+    });
+
+    updateData.historicoStatus = JSON.stringify(historico);
+
+    const membroAtualizado = await prisma.escalaMembro.update({
+      where: { id: membro.id },
+      data: updateData,
+      include: { usuario: true },
+    });
+
+    // Registrar na Timeline da Operação
+    await prisma.statusLog.create({
+      data: {
+        escalaId,
+        usuarioId,
+        tipo: 'STATUS_CHANGE',
+        descricao: `${membro.usuario.nome} atualizado para ${s}`,
+        dados: JSON.stringify({ status: s, horario: agora.toISOString() }),
+      },
+    });
+
+    res.json({
+      sucesso: true,
+      membro: {
+        ...membroAtualizado,
+        historicoStatus: historico,
+      },
+    });
+  } catch (err) {
+    console.error('PUT /api/operacoes/:id/membros/:usuarioId/status:', err);
+    res.status(500).json({ erro: 'Erro ao atualizar status', detalhe: err.message });
+  }
+});
+
+// PUT /api/operacoes/:id/observacoes (Salva observações da operação)
+router.put('/:id/observacoes', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { observacoes } = req.body;
+
+    const op = await prisma.escala.update({
+      where: { id },
+      data: { observacoes: observacoes?.trim() || null },
+    });
+
+    await prisma.statusLog.create({
+      data: {
+        escalaId: id,
+        tipo: 'OBSERVACOES',
+        descricao: 'Observações da operação atualizadas.',
+      },
+    });
+
+    res.json({ sucesso: true, observacoes: op.observacoes });
+  } catch (err) {
+    console.error('PUT /api/operacoes/:id/observacoes:', err);
+    res.status(500).json({ erro: 'Erro ao salvar observações', detalhe: err.message });
+  }
+});
+
+// PUT /api/operacoes/:id/finalizar (Finaliza a operação)
 router.put('/:id/finalizar', async (req, res) => {
   try {
+    const { id } = req.params;
+
+    const op = await prisma.escala.findUnique({
+      where: { id },
+      include: { loja: true, membros: true },
+    });
+
+    if (!op) return res.status(404).json({ erro: 'Operação não encontrada' });
+
+    const piv = op.pivNecessario || op.membros.length;
+    const emLoja = op.membros.filter(m => m.status === 'EM_LOJA' || m.chegou).length;
+    const faltas = op.membros.filter(m => m.status === 'FALTOU').length;
+    const deficit = Math.max(0, piv - emLoja);
+
     const escala = await prisma.escala.update({
-      where: { id: req.params.id },
+      where: { id },
       data: {
         status: 'FINALIZADA',
         finalizadoEm: new Date(),
       },
-      include: { loja: true, membros: { include: { usuario: true } } },
+      include: { loja: true },
+    });
+
+    await prisma.statusLog.create({
+      data: {
+        escalaId: id,
+        tipo: 'FINALIZACAO',
+        descricao: `Operação finalizada. PIV Necessário: ${piv} | Em loja: ${emLoja} | Faltas: ${faltas} | Déficit: ${deficit}`,
+      },
     });
 
     res.json({
-      mensagem: `Operação ${escala.loja.nome} finalizada e arquivada com sucesso!`,
-      escala,
+      sucesso: true,
+      mensagem: `Operação ${escala.loja.nome} finalizada com sucesso!`,
+      operacao: escala,
     });
   } catch (err) {
     console.error('PUT /api/operacoes/:id/finalizar:', err);
@@ -482,17 +902,70 @@ router.put('/:id/finalizar', async (req, res) => {
   }
 });
 
-// GET /api/operacoes/logs (Lista logs de importação)
-router.get('/logs', async (req, res) => {
+// POST /api/operacoes/:id/membros (Adicionar membro individual)
+router.post('/:id/membros', async (req, res) => {
   try {
-    const logs = await prisma.importacaoLog.findMany({
-      orderBy: { dataHora: 'desc' },
-      take: 50,
+    const { id } = req.params;
+    const { usuarioId, cargo, status } = req.body;
+
+    if (!usuarioId) return res.status(400).json({ erro: 'usuarioId é obrigatório' });
+
+    const membro = await prisma.escalaMembro.create({
+      data: {
+        escalaId: id,
+        usuarioId,
+        cargo: cargo || 'Operador',
+        status: status || 'PENDENTE',
+        historicoStatus: JSON.stringify([{ status: status || 'PENDENTE', horario: new Date().toISOString() }]),
+      },
+      include: { usuario: true },
     });
-    res.json(logs);
+
+    await prisma.statusLog.create({
+      data: {
+        escalaId: id,
+        usuarioId,
+        tipo: 'STATUS_CHANGE',
+        descricao: `${membro.usuario.nome} adicionado à operação como ${membro.cargo}.`,
+      },
+    });
+
+    res.status(201).json(membro);
   } catch (err) {
-    console.error('GET /api/operacoes/logs:', err);
-    res.status(500).json({ erro: 'Erro ao buscar logs', detalhe: err.message });
+    if (err.code === 'P2002') return res.status(409).json({ erro: 'Colaborador já está nesta operação' });
+    console.error('POST /api/operacoes/:id/membros:', err);
+    res.status(500).json({ erro: 'Erro ao adicionar membro', detalhe: err.message });
+  }
+});
+
+// DELETE /api/operacoes/:id/membros/:membroId (Remover membro)
+router.delete('/:id/membros/:membroId', async (req, res) => {
+  try {
+    const { id, membroId } = req.params;
+
+    const membro = await prisma.escalaMembro.findUnique({
+      where: { id: membroId },
+      include: { usuario: true },
+    });
+
+    if (!membro) return res.status(404).json({ erro: 'Membro não encontrado' });
+
+    await prisma.escalaMembro.delete({
+      where: { id: membroId },
+    });
+
+    await prisma.statusLog.create({
+      data: {
+        escalaId: id,
+        tipo: 'STATUS_CHANGE',
+        descricao: `${membro.usuario.nome} removido da operação.`,
+      },
+    });
+
+    res.json({ sucesso: true, mensagem: 'Colaborador removido da operação' });
+  } catch (err) {
+    console.error('DELETE /api/operacoes/:id/membros/:membroId:', err);
+    res.status(500).json({ erro: 'Erro ao remover membro', detalhe: err.message });
   }
 });
 

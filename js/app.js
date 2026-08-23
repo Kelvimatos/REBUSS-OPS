@@ -582,11 +582,11 @@ const App = (() => {
   }
 
   // ==========================================================================
-  // 6. NAVEGAÇÃO SPA (Início, Copiador, Escalas, Calendário)
+  // 6. NAVEGAÇÃO SPA (Operações, Dashboard, Histórico, Copiador, Escalas, Calendário)
   // ==========================================================================
   function navigateTo(route) {
-    const validRoutes = ['dashboard', 'inicio', 'historico', 'copiador', 'escalas', 'calendario', 'equipes', 'usuarios-sistema'];
-    const target = validRoutes.includes(route) ? route : 'dashboard';
+    const validRoutes = ['operacoes', 'dashboard', 'inicio', 'historico', 'copiador', 'escalas', 'calendario', 'equipes', 'usuarios-sistema'];
+    const target = validRoutes.includes(route) ? route : 'operacoes';
 
     document.querySelectorAll('.view-section').forEach(view => {
       view.classList.toggle('active', view.id === `view-${target}`);
@@ -604,7 +604,9 @@ const App = (() => {
     window.location.hash = `#/${target}`;
     window.scrollTo({ top: 0, behavior: 'instant' });
 
-    if ((target === 'dashboard' || target === 'inicio') && window.DashboardModule) {
+    if (target === 'operacoes' && window.OperacoesModule) {
+      OperacoesModule.render();
+    } else if ((target === 'dashboard' || target === 'inicio') && window.DashboardModule) {
       DashboardModule.render();
     } else if (target === 'historico' && window.HistoricoModule) {
       HistoricoModule.render();
@@ -628,7 +630,7 @@ const App = (() => {
     });
 
     const initialRoute = window.location.hash.replace(/^#\/?/, '').trim();
-    navigateTo(initialRoute || 'inicio');
+    navigateTo(initialRoute || 'operacoes');
   }
 
   // ==========================================================================

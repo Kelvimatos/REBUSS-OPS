@@ -206,7 +206,18 @@
 
         <!-- Menu Principal Desktop -->
         <nav class="nav-links" id="desktop-nav-links">
-          <a href="#/dashboard" class="nav-link active" data-nav="dashboard" data-route="dashboard">
+          <a href="#/operacoes" class="nav-link active" data-nav="operacoes" data-route="operacoes">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+            <span>Operações</span>
+          </a>
+
+          <a href="#/dashboard" class="nav-link" data-nav="dashboard" data-route="dashboard">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="3" width="7" height="9" rx="1"></rect>
               <rect x="14" y="3" width="7" height="5" rx="1"></rect>
@@ -278,15 +289,6 @@
 
         <!-- Ações do Canto Direito -->
         <div class="header-actions">
-          <!-- Botão Rápido de Importação do Admin Rebuss -->
-          <button class="btn btn-primary btn-sm btn-abrir-importador" onclick="ImportadorModule.abrirModal()" type="button" style="display:inline-flex; align-items:center; gap:6px; font-weight:700;">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-            <span>Importar</span>
-          </button>
           <!-- Perfil do Usuário Ativo com Dropdown -->
           <div class="user-profile-badge" id="header-user-badge">
             <div id="header-user-avatar-wrapper" class="header-avatar-ring">
@@ -379,15 +381,16 @@
     <!-- Menu Mobile Dropdown / Drawer -->
     <div id="mobile-nav-drawer" class="mobile-nav-drawer hide">
       <div class="mobile-nav-content">
-        <button class="mobile-nav-link btn-abrir-importador" onclick="ImportadorModule.abrirModal()" type="button" style="background:var(--primary); color:#fff; border:none; width:100%; text-align:left; cursor:pointer; margin-bottom:6px;">
+        <a href="#/operacoes" class="mobile-nav-link active" data-nav="operacoes" data-route="operacoes">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
           </svg>
-          <span>📥 Importar Operação</span>
-        </button>
-        <a href="#/dashboard" class="mobile-nav-link active" data-nav="dashboard" data-route="dashboard">
+          <span>Operações</span>
+        </a>
+        <a href="#/dashboard" class="mobile-nav-link" data-nav="dashboard" data-route="dashboard">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="7" height="9" rx="1"></rect>
             <rect x="14" y="3" width="7" height="5" rx="1"></rect>
@@ -449,9 +452,333 @@
   <main class="main-container">
 
     <!-- ==========================================================================
+         VIEW PRINCIPAL: GESTÃO OPERACIONAL (OPERAÇÕES)
+         ========================================================================== -->
+    <section id="view-operacoes" class="view-section active">
+      <!-- SUB-VIEW A: LISTA DE OPERAÇÕES & FILTROS -->
+      <div id="ops-view-dia-container">
+        <!-- Topo da Área de Operações -->
+        <div class="ops-header-bar">
+          <div class="ops-header-title-block">
+            <div class="ops-header-title-row">
+              <h1 class="ops-main-title">Operações</h1>
+              <span class="ops-live-pulse" title="Sincronizado com PostgreSQL"></span>
+            </div>
+            <p class="ops-main-sub">Controle diário de lojas, acompanhamento de equipes e controle de PIV</p>
+          </div>
+
+          <div class="ops-header-actions-block">
+            <button type="button" id="btn-abrir-nova-operacao" class="btn btn-primary btn-nova-op-destaque">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>Nova Operação</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Abas de Período -->
+        <div class="ops-periodo-tabs-bar">
+          <div class="ops-periodo-tabs" id="ops-periodo-tabs">
+            <button type="button" class="ops-tab-btn active" data-periodo="hoje">Hoje</button>
+            <button type="button" class="ops-tab-btn" data-periodo="amanha">Amanhã</button>
+            <button type="button" class="ops-tab-btn" data-periodo="proximas">Próximas</button>
+            <button type="button" class="ops-tab-btn" data-periodo="finalizadas">Finalizadas</button>
+            <button type="button" class="ops-tab-btn" data-periodo="todas">Todas</button>
+          </div>
+        </div>
+
+        <!-- Barra de Filtros Avançados -->
+        <div class="ops-filters-card">
+          <div class="ops-filter-field ops-search-field">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="ops-filter-loja" placeholder="Buscar loja..." autocomplete="off">
+          </div>
+
+          <div class="ops-filter-field">
+            <input type="text" id="ops-filter-cidade" placeholder="Cidade..." autocomplete="off">
+          </div>
+
+          <div class="ops-filter-field">
+            <select id="ops-filter-estado">
+              <option value="todos">Todos Estados</option>
+              <option value="MG">MG</option>
+              <option value="SP">SP</option>
+              <option value="RJ">RJ</option>
+              <option value="DF">DF</option>
+              <option value="GO">GO</option>
+              <option value="PR">PR</option>
+              <option value="BA">BA</option>
+              <option value="CE">CE</option>
+              <option value="PE">PE</option>
+              <option value="RS">RS</option>
+              <option value="SC">SC</option>
+              <option value="ES">ES</option>
+            </select>
+          </div>
+
+          <div class="ops-filter-field">
+            <select id="ops-filter-status">
+              <option value="todos">Status: Todos</option>
+              <option value="EM_ANDAMENTO">Em andamento</option>
+              <option value="FINALIZADA">Finalizada</option>
+            </select>
+          </div>
+
+          <div class="ops-filter-field ops-date-field">
+            <input type="date" id="ops-date-picker" title="Filtrar por data específica">
+          </div>
+
+          <button type="button" id="btn-ops-limpar-filtros" class="btn btn-secondary btn-sm" title="Limpar todos os filtros">
+            Limpar
+          </button>
+        </div>
+
+        <!-- Indicadores Globais do Período -->
+        <div class="ops-metrics-grid">
+          <div class="ops-stat-card">
+            <div class="ops-stat-info">
+              <span class="ops-stat-label">PIV TOTAL</span>
+              <strong class="ops-stat-value" id="ops-m-piv-total">0</strong>
+            </div>
+          </div>
+          <div class="ops-stat-card">
+            <div class="ops-stat-info">
+              <span class="ops-stat-label">CONFIRMADOS</span>
+              <strong class="ops-stat-value text-success" id="ops-m-confirmados">0</strong>
+            </div>
+          </div>
+          <div class="ops-stat-card">
+            <div class="ops-stat-info">
+              <span class="ops-stat-label">EM LOJA</span>
+              <strong class="ops-stat-value text-primary" id="ops-m-em-loja">0</strong>
+            </div>
+          </div>
+          <div class="ops-stat-card">
+            <div class="ops-stat-info">
+              <span class="ops-stat-label">A CAMINHO</span>
+              <strong class="ops-stat-value text-info" id="ops-m-a-caminho">0</strong>
+            </div>
+          </div>
+          <div class="ops-stat-card">
+            <div class="ops-stat-info">
+              <span class="ops-stat-label">FALTAS</span>
+              <strong class="ops-stat-value text-danger" id="ops-m-faltas">0</strong>
+            </div>
+          </div>
+          <div class="ops-stat-card">
+            <div class="ops-stat-info">
+              <span class="ops-stat-label">ATRASOS</span>
+              <strong class="ops-stat-value text-warning" id="ops-m-atrasos">0</strong>
+            </div>
+          </div>
+          <div class="ops-stat-card">
+            <div class="ops-stat-info">
+              <span class="ops-stat-label">PIV INCOMPLETO</span>
+              <strong class="ops-stat-value text-danger" id="ops-m-incompletas">0</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Central de Pendências -->
+        <div class="ops-pendencias-card" id="ops-pendencias-wrapper">
+          <div class="ops-pendencias-header">
+            <h3>Pendências Operacionais</h3>
+            <span class="ops-pendencias-sub">Operações que necessitam de atenção imediata (PIV incompleto, faltas ou confirmações)</span>
+          </div>
+          <div class="ops-pendencias-list" id="ops-pendencias-container">
+            <!-- Gerado via JS -->
+          </div>
+        </div>
+
+        <!-- Grid de Cards de Operações -->
+        <div class="ops-lojas-section">
+          <div class="ops-section-header">
+            <h2 id="ops-lista-titulo">Operações</h2>
+            <span id="ops-lista-contagem" class="text-muted" style="font-size:0.85rem;">0 operações encontradas</span>
+          </div>
+          <div class="ops-cards-grid" id="ops-dia-list">
+            <!-- Gerado via JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-VIEW B: PÁGINA DA OPERAÇÃO (PAINEL OPERACIONAL) -->
+      <div id="ops-view-painel-container" style="display:none;">
+        <!-- Top Bar da Operação -->
+        <div class="painel-op-topbar">
+          <div class="painel-op-nav-left">
+            <button type="button" id="btn-voltar-operacoes-dia" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+              </svg>
+              <span>Voltar para Operações</span>
+            </button>
+            <div class="painel-op-titles">
+              <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                <h1 id="painel-op-title" class="painel-op-h1">Loja</h1>
+                <span id="painel-op-status-badge" class="ops-status-badge aberta">Em andamento</span>
+              </div>
+              <div id="painel-op-sub" class="painel-op-subinfo">
+                Data • Horário • Localização
+              </div>
+            </div>
+          </div>
+
+          <div class="painel-op-nav-right">
+            <button type="button" id="btn-painel-importar-equipe" class="btn btn-primary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <span>Importar equipe</span>
+            </button>
+            <button type="button" id="btn-painel-add-colaborador" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>Adicionar colaborador</span>
+            </button>
+            <button type="button" id="btn-painel-finalizar-op" class="btn btn-danger btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+              <span>Finalizar operação</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Bloco de PIV e Resumo da Operação -->
+        <div class="painel-piv-summary-card">
+          <div class="painel-piv-main-block">
+            <div class="piv-main-label">PIV DA OPERAÇÃO</div>
+            <div class="piv-main-value-row">
+              <span class="piv-big-counter" id="painel-piv-big-counter">0 / 0</span>
+              <span class="piv-status-pill" id="painel-piv-status-pill">PIV Completo</span>
+            </div>
+            <div class="piv-progress-track">
+              <div class="piv-progress-fill" id="painel-piv-progress-fill" style="width: 0%;"></div>
+            </div>
+          </div>
+
+          <div class="painel-piv-kpi-grid">
+            <div class="painel-piv-kpi-item">
+              <span class="piv-kpi-lbl">NECESSÁRIO</span>
+              <strong class="piv-kpi-val" id="painel-piv-necessario">0</strong>
+            </div>
+            <div class="painel-piv-kpi-item">
+              <span class="piv-kpi-lbl">CONFIRMADOS</span>
+              <strong class="piv-kpi-val text-success" id="painel-confirmados">0</strong>
+            </div>
+            <div class="painel-piv-kpi-item">
+              <span class="piv-kpi-lbl">A CAMINHO</span>
+              <strong class="piv-kpi-val text-info" id="painel-a-caminho">0</strong>
+            </div>
+            <div class="painel-piv-kpi-item">
+              <span class="piv-kpi-lbl">EM LOJA</span>
+              <strong class="piv-kpi-val text-primary" id="painel-em-loja">0</strong>
+            </div>
+            <div class="painel-piv-kpi-item">
+              <span class="piv-kpi-lbl">ATRASADOS</span>
+              <strong class="piv-kpi-val text-warning" id="painel-atrasos">0</strong>
+            </div>
+            <div class="painel-piv-kpi-item">
+              <span class="piv-kpi-lbl">FALTAS</span>
+              <strong class="piv-kpi-val text-danger" id="painel-faltas">0</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Banner Dinâmico e Discreto de PIV Incompleto -->
+        <div id="painel-piv-incompleto-banner" style="display:none;"></div>
+
+        <!-- Tabela Profissional da Equipe -->
+        <div class="painel-table-card">
+          <!-- Filtros Rápidos da Equipe e Busca -->
+          <div class="painel-team-controls-bar">
+            <div class="painel-team-filters" id="painel-team-status-filters">
+              <button type="button" class="ops-team-pill active" data-status="TODOS">Todos (<span id="cnt-team-todos">0</span>)</button>
+              <button type="button" class="ops-team-pill" data-status="PENDENTE">Pendentes (<span id="cnt-team-pendentes">0</span>)</button>
+              <button type="button" class="ops-team-pill" data-status="CONFIRMADO">Confirmados (<span id="cnt-team-confirmados">0</span>)</button>
+              <button type="button" class="ops-team-pill" data-status="A_CAMINHO">A caminho (<span id="cnt-team-caminho">0</span>)</button>
+              <button type="button" class="ops-team-pill" data-status="EM_LOJA">Em loja (<span id="cnt-team-loja">0</span>)</button>
+              <button type="button" class="ops-team-pill" data-status="ATRASADO">Atrasados (<span id="cnt-team-atrasados">0</span>)</button>
+              <button type="button" class="ops-team-pill" data-status="FALTOU">Faltas (<span id="cnt-team-faltas">0</span>)</button>
+            </div>
+
+            <div class="painel-team-search-wrap">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input type="text" id="ops-team-search-input" placeholder="Pesquisar colaborador (nome, código, matrícula, tel)..." autocomplete="off">
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="ops-excel-table">
+              <thead>
+                <tr>
+                  <th style="width:40px;">#</th>
+                  <th>Cargo</th>
+                  <th>Código</th>
+                  <th>Nome do Colaborador</th>
+                  <th>Cidade</th>
+                  <th>Telefone / WhatsApp</th>
+                  <th>Status</th>
+                  <th style="min-width:260px;">Ações Rápidas</th>
+                  <th style="width:40px;"></th>
+                </tr>
+              </thead>
+              <tbody id="painel-equipe-tbody">
+                <!-- Gerado via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 2 Colunas: Observações & Histórico da Operação -->
+        <div class="painel-two-cols">
+          <!-- Observações da Operação -->
+          <div class="painel-obs-card">
+            <div class="painel-obs-header">
+              <h3>Observações da Operação</h3>
+              <span class="text-muted" style="font-size:0.82rem;">Registro de ocorrências e alterações</span>
+            </div>
+            <textarea id="painel-op-observacoes" class="painel-obs-textarea" placeholder="Ex: Loja solicitou alteração de equipe. Supervisor informou atraso. PIV alterado de 5 para 4..."></textarea>
+            <div style="margin-top:10px; display:flex; justify-content:flex-end;">
+              <button type="button" id="btn-salvar-observacoes-op" class="btn btn-primary btn-sm">
+                Salvar Observações
+              </button>
+            </div>
+          </div>
+
+          <!-- Histórico / Timeline da Operação -->
+          <div class="painel-timeline-card">
+            <div class="painel-timeline-header">
+              <h3>Histórico da Operação</h3>
+              <span class="text-muted" style="font-size:0.82rem;">Registro cronológico de alterações</span>
+            </div>
+            <div class="painel-timeline-list" id="painel-op-timeline">
+              <!-- Gerado via JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
          VIEW 0: DASHBOARD OPERACIONAL EM TEMPO REAL
          ========================================================================== -->
-    <section id="view-dashboard" class="view-section active">
+    <section id="view-dashboard" class="view-section">
       <!-- Topo: Boas-vindas e Data -->
       <div class="dash-welcome-bar">
         <div class="dash-welcome-text">
@@ -1777,6 +2104,213 @@ Exemplo:
   </div>
 
   <!-- ==========================================================================
+       MODAL: NOVA OPERAÇÃO
+       ========================================================================== -->
+  <div id="modal-nova-operacao" class="modal-overlay">
+    <div class="modal-box" style="max-width: 620px;">
+      <div class="modal-header">
+        <div>
+          <h3>Nova Operação</h3>
+          <span class="text-muted" style="font-size:0.85rem;">Cadastre uma nova operação para associar equipes e acompanhar status</span>
+        </div>
+        <button class="btn-card-mini modal-ops-close" type="button">✕</button>
+      </div>
+      <form id="form-nova-operacao">
+        <div class="modal-body">
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="novo-op-loja">Nome da Loja *</label>
+              <input type="text" id="novo-op-loja" placeholder="Ex: Americanas 939" required>
+            </div>
+            <div class="form-group">
+              <label for="novo-op-data">Data *</label>
+              <input type="date" id="novo-op-data" required>
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="novo-op-horario">Horário *</label>
+              <input type="time" id="novo-op-horario" value="18:30" required>
+            </div>
+            <div class="form-group">
+              <label for="novo-op-piv">PIV Necessário *</label>
+              <input type="number" id="novo-op-piv" value="5" min="1" required>
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="novo-op-cidade">Cidade *</label>
+              <input type="text" id="novo-op-cidade" value="Belo Horizonte" required>
+            </div>
+            <div class="form-group">
+              <label for="novo-op-estado">Estado (UF) *</label>
+              <input type="text" id="novo-op-estado" value="MG" maxlength="2" style="text-transform:uppercase;" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="novo-op-endereco">Endereço da Loja <span class="text-muted">(Opcional)</span></label>
+            <input type="text" id="novo-op-endereco" placeholder="Ex: Av. Afonso Pena, 1234 - Centro">
+          </div>
+
+          <div class="form-group">
+            <label for="novo-op-observacoes">Observações Iniciais <span class="text-muted">(Opcional)</span></label>
+            <textarea id="novo-op-observacoes" rows="2" placeholder="Ex: Ponto de encontro, orientações de transporte..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-ops-close">Cancelar</button>
+          <button type="submit" id="btn-submit-nova-op" class="btn btn-primary">
+            Criar Operação
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: IMPORTAR EQUIPE PARA A OPERAÇÃO
+       ========================================================================== -->
+  <div id="modal-importar-equipe-op" class="modal-overlay">
+    <div class="modal-box" style="max-width: 800px;">
+      <div class="modal-header">
+        <div>
+          <h3>Importar Equipe da Operação</h3>
+          <span id="modal-importar-equipe-loja-sub" class="text-muted" style="font-size:0.85rem;">Cole a equipe copiada do Admin Rebuss</span>
+        </div>
+        <button class="btn-card-mini modal-ops-close" type="button">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="textarea-equipe-op">Cole aqui o texto da equipe (tabela com pipes, links markdown ou texto copiado):</label>
+          <textarea id="textarea-equipe-op" rows="6" class="form-control" style="font-family:monospace; font-size:0.85rem;" placeholder="| Supervisor general | [100654 - Camyla Isabelle](URL) | 19432854 | Belo Horizonte | (32) 99919-4901 | No confirmado |
+| Operador | [103579 - Karen Milena](URL) | 09476755660 | Belo Horizonte | (31) 99108-2297 | No confirmado |
+| Operador | [104136 - Leandro Tameirao](URL) | 18320029 | Belo Horizonte | (31) 97357-8599 | No confirmado |"></textarea>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <button type="button" id="btn-analisar-equipe-op" class="btn btn-primary btn-sm">
+            Analisar Equipe
+          </button>
+          <button type="button" id="btn-limpar-texto-equipe-op" class="btn btn-secondary btn-sm">
+            Limpar Texto
+          </button>
+        </div>
+
+        <div id="import-equipe-preview-wrap" style="display:none; margin-top:14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <h4 style="margin:0; font-size:0.95rem;">Pré-visualização dos Colaboradores</h4>
+            <span id="preview-equipe-count" class="badge-tag">0 colaboradores</span>
+          </div>
+          <div class="table-responsive" style="max-height: 240px; overflow-y: auto;">
+            <table class="ops-excel-table">
+              <thead>
+                <tr>
+                  <th style="width:40px;">#</th>
+                  <th>Cargo</th>
+                  <th>Código</th>
+                  <th>Nome Limpo</th>
+                  <th>Matrícula</th>
+                  <th>Cidade</th>
+                  <th>Telefone</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="table-preview-equipe-tbody">
+                <!-- Preenchido via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary modal-ops-close">Cancelar</button>
+        <button type="button" id="btn-confirmar-importar-equipe-op" class="btn btn-primary" disabled>
+          Importar para a Operação
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: FINALIZAR OPERAÇÃO
+       ========================================================================== -->
+  <div id="modal-finalizar-operacao" class="modal-overlay">
+    <div class="modal-box" style="max-width: 580px;">
+      <div class="modal-header">
+        <div>
+          <h3>Finalizar Operação</h3>
+          <span class="text-muted" style="font-size:0.85rem;">Confira o resumo operacional antes de encerrar</span>
+        </div>
+        <button class="btn-card-mini modal-ops-close" type="button">✕</button>
+      </div>
+      <div class="modal-body">
+        <h4 style="margin:0 0 12px; font-size:1.1rem;">Resumo de Fechamento: <span id="fin-loja-nome">Loja</span></h4>
+
+        <div class="painel-piv-kpi-grid" style="margin-bottom: 14px;">
+          <div class="painel-piv-kpi-item">
+            <span class="piv-kpi-lbl">PIV NECESSÁRIO</span>
+            <strong class="piv-kpi-val" id="fin-piv-nec">0</strong>
+          </div>
+          <div class="painel-piv-kpi-item">
+            <span class="piv-kpi-lbl">CONFIRMADOS</span>
+            <strong class="piv-kpi-val text-success" id="fin-confirmados">0</strong>
+          </div>
+          <div class="painel-piv-kpi-item">
+            <span class="piv-kpi-lbl">EM LOJA</span>
+            <strong class="piv-kpi-val text-primary" id="fin-em-loja">0</strong>
+          </div>
+          <div class="painel-piv-kpi-item">
+            <span class="piv-kpi-lbl">A CAMINHO</span>
+            <strong class="piv-kpi-val text-info" id="fin-a-caminho">0</strong>
+          </div>
+          <div class="painel-piv-kpi-item">
+            <span class="piv-kpi-lbl">ATRASADOS</span>
+            <strong class="piv-kpi-val text-warning" id="fin-atrasados">0</strong>
+          </div>
+          <div class="painel-piv-kpi-item">
+            <span class="piv-kpi-lbl">FALTAS</span>
+            <strong class="piv-kpi-val text-danger" id="fin-faltas">0</strong>
+          </div>
+        </div>
+
+        <div id="fin-incompleto-warning"></div>
+
+        <p style="margin:12px 0 0; font-size:0.95rem; text-align:center;">
+          <strong>Deseja finalizar esta operação?</strong><br>
+          <span class="text-muted" style="font-size:0.85rem;">Após finalizada, ela será travada e permanecerá salva no histórico permanente.</span>
+        </p>
+      </div>
+      <div class="modal-footer" style="display:flex; justify-content:space-between;">
+        <button type="button" class="btn btn-secondary modal-ops-close">Cancelar</button>
+        <button type="button" id="btn-confirmar-finalizacao-op" class="btn btn-danger">
+          Finalizar Operação
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: DOSSIÊ HISTÓRICO DO COLABORADOR
+       ========================================================================== -->
+  <div id="modal-colaborador-dossie" class="modal-overlay">
+    <div class="modal-box" style="max-width: 750px;">
+      <div class="modal-header">
+        <h3>Histórico do Colaborador</h3>
+        <button class="btn-card-mini modal-ops-close" type="button">✕</button>
+      </div>
+      <div class="modal-body" id="modal-dossie-body">
+        <!-- Renderizado dinamicamente via JS -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-ops-close" type="button">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
        TOAST DE NOTIFICAÇÃO
        ========================================================================== -->
   <div id="global-toast" class="toast">
@@ -1795,6 +2329,7 @@ Exemplo:
   <!-- Scripts Modulares -->
   <script src="js/api.js"></script>
   <script src="js/auth.js"></script>
+  <script src="js/operacoes.js"></script>
   <script src="js/dashboard.js"></script>
   <script src="js/admin.js"></script>
   <script src="js/historico.js"></script>

@@ -275,11 +275,12 @@ router.get('/colaborador/:idOrMatricula', async (req, res) => {
   try {
     const { idOrMatricula } = req.params;
 
-    // Localizar por ID ou Matrícula
+    // Localizar por ID, Código, Matrícula ou Nome
     let usuario = await prisma.usuario.findFirst({
       where: {
         OR: [
           { id: idOrMatricula },
+          { codigo: idOrMatricula },
           { matricula: idOrMatricula },
           { nome: { equals: idOrMatricula, mode: 'insensitive' } },
         ],
@@ -335,6 +336,7 @@ router.get('/colaborador/:idOrMatricula', async (req, res) => {
       colaborador: {
         id: usuario.id,
         nome: usuario.nome,
+        codigo: usuario.codigo || usuario.matricula || '—',
         matricula: usuario.matricula || '—',
         telefone: usuario.telefone,
         cidade: usuario.cidade,

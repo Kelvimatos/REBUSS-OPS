@@ -127,7 +127,7 @@ const DashboardModule = (() => {
       if (!escalas || escalas.length === 0) {
         container.innerHTML = `
           <div class="dash-empty-box">
-            <span>📅 Nenhuma escala programada para hoje nesta praça.</span>
+            <span>Nenhuma operação programada para hoje nesta praça.</span>
           </div>
         `;
         return;
@@ -138,7 +138,7 @@ const DashboardModule = (() => {
           <div class="dash-escala-header">
             <div>
               <h4 class="dash-escala-loja">${escapeHtml(e.loja)}</h4>
-              <span class="dash-escala-loc">📍 ${escapeHtml(e.cidade)}/${escapeHtml(e.estado)} · ⏰ ${e.horario}</span>
+              <span class="dash-escala-loc">${escapeHtml(e.cidade)}/${escapeHtml(e.estado)} • ${e.horario}</span>
             </div>
             <span class="dash-status-pill status-${e.status.toLowerCase()}">${e.status}</span>
           </div>
@@ -164,7 +164,7 @@ const DashboardModule = (() => {
 
           <div class="dash-escala-actions">
             <button class="btn btn-sm btn-outline-primary" onclick="DashboardModule.abrirModalEscala('${e.id}')">
-              Ver Escala Completa
+              Abrir Operação
             </button>
           </div>
         </div>
@@ -190,7 +190,7 @@ const DashboardModule = (() => {
       if (!alertas || alertas.length === 0) {
         container.innerHTML = `
           <div class="dash-empty-box text-success">
-            <span>✅ Tudo sob controle! Nenhum alerta crítico reportado no momento.</span>
+            <span>Tudo sob controle. Nenhum alerta crítico registrado no momento.</span>
           </div>
         `;
         return;
@@ -198,7 +198,6 @@ const DashboardModule = (() => {
 
       container.innerHTML = alertas.map(a => `
         <div class="dash-alerta-item nivel-${a.nivel}">
-          <span class="alerta-icon">${a.icone}</span>
           <div class="alerta-body">
             <strong>${escapeHtml(a.titulo)}</strong>
             <p>${escapeHtml(a.mensagem)}</p>
@@ -351,55 +350,13 @@ const DashboardModule = (() => {
     });
   }
 
-  // ─── Modal de Escala Detalhada ───────────────────────────────────────────────
+  // ─── Navegação Direta para a Operação no Painel Operacional ────────────────
   async function abrirModalEscala(escalaId) {
-    try {
-      const escala = await RebussAPI.escalas.get(escalaId);
-      const modal = document.getElementById('modal-dash-escala-detalhe');
-      const title = document.getElementById('modal-dash-escala-title');
-      const body = document.getElementById('modal-dash-escala-body');
-
-      if (!modal || !escala) return;
-
-      if (title) title.textContent = `${escala.loja?.nome || 'Escala'} — ${escala.horario}`;
-      if (body) {
-        body.innerHTML = `
-          <div style="margin-bottom:12px; font-size:0.88rem; color:var(--text-muted);">
-            📍 ${escapeHtml(escala.loja?.endereco || '')} · ${escapeHtml(escala.loja?.cidade || '')}/${escapeHtml(escala.loja?.estado || '')}
-          </div>
-          <div style="margin-bottom:16px;">
-            <strong>Membros Escalados (${escala.membros.length}):</strong>
-          </div>
-          <div class="table-responsive">
-            <table class="table-dash-membros">
-              <thead>
-                <tr>
-                  <th>Nome</th>
-                  <th>Matrícula</th>
-                  <th>Status</th>
-                  <th>Confirmação</th>
-                  <th>Chegada</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${escala.membros.map(m => `
-                  <tr>
-                    <td><strong>${escapeHtml(m.usuario.nome)}</strong></td>
-                    <td>${escapeHtml(m.usuario.matricula || '—')}</td>
-                    <td><span class="dash-status-pill status-${m.status.toLowerCase()}">${m.status}</span></td>
-                    <td>${m.confirmou ? '✅ Confirmado' : '⏳ Pendente'}</td>
-                    <td>${m.chegou ? '🟢 Em Loja' : '—'}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-        `;
-      }
-
-      modal.classList.add('open');
-    } catch (err) {
-      alert('Erro ao carregar detalhes da escala: ' + err.message);
+    if (window.App && typeof App.navigateTo === 'function') {
+      App.navigateTo('operacoes');
+    }
+    if (window.OperacoesModule && typeof OperacoesModule.abrirOperacao === 'function') {
+      await OperacoesModule.abrirOperacao(escalaId);
     }
   }
 

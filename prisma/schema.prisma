@@ -26,6 +26,7 @@ model UsuarioSistema {
 model Usuario {
   id        String   @id @default(uuid())
   nome      String
+  codigo    String?  @unique
   matricula String?  @unique
   telefone  String?
   cidade    String?
@@ -90,25 +91,43 @@ model Escala {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  loja    Loja           @relation(fields: [lojaId], references: [id])
-  membros EscalaMembro[]
+  loja       Loja           @relation(fields: [lojaId], references: [id])
+  membros    EscalaMembro[]
+  statusLogs StatusLog[]
 }
 
 model EscalaMembro {
   id                 String    @id @default(uuid())
   escalaId           String
   usuarioId          String
+  codigo             String?
   cargo              String?   // Supervisor, Chefe de Grupo, Contador, Operador, Escaneador
-  status             String    @default("PENDENTE")
+  status             String    @default("PENDENTE") // PENDENTE, CONFIRMADO, A_CAMINHO, EM_LOJA, ATRASADO, FALTOU, RECUSOU, CANCELADO
   confirmou          Boolean   @default(false)
   horarioConfirmacao DateTime?
   chegou             Boolean   @default(false)
   horarioChegada     DateTime?
+  cidade             String?
+  telefone           String?
+  historicoStatus    String?   // JSON array com histórico de alterações [{ status, horario }]
+  observacao         String?
 
   escala  Escala  @relation(fields: [escalaId], references: [id], onDelete: Cascade)
   usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
   @@unique([escalaId, usuarioId])
+}
+
+model StatusLog {
+  id          String   @id @default(uuid())
+  escalaId    String
+  usuarioId   String?
+  tipo        String   @default("STATUS_CHANGE") // CRIACAO, IMPORTACAO, STATUS_CHANGE, OBSERVACOES, FINALIZACAO
+  descricao   String
+  dados       String?  // JSON opcional
+  criadoEm    DateTime @default(now())
+
+  escala Escala @relation(fields: [escalaId], references: [id], onDelete: Cascade)
 }
 
 model Ocorrencia {

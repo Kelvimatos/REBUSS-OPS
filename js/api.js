@@ -227,8 +227,21 @@ var RebussAPI = (function () {
     removeMembro: (escalaId, usuarioId) => request(`/escalas/${encodeURIComponent(escalaId)}/membros/${encodeURIComponent(usuarioId)}`, { method: 'DELETE' }),
   };
 
-  // ─── Operações & Importador Inteligente ─────────────────────────────────────
+  // ─── Operações & Controle Diário em Tempo Real ─────────────────────────────
   const operacoes = {
+    list: (params = {}) => {
+      const q = new URLSearchParams(params).toString();
+      return request(`/operacoes${q ? '?' + q : ''}`);
+    },
+    getHoje: (params = {}) => {
+      const q = new URLSearchParams(params).toString();
+      return request(`/operacoes/hoje${q ? '?' + q : ''}`);
+    },
+    get: (id) => request(`/operacoes/${encodeURIComponent(id)}`),
+    create: (dados) => request('/operacoes', {
+      method: 'POST',
+      body: JSON.stringify(dados),
+    }),
     analisar: (texto) => request('/operacoes/analisar', {
       method: 'POST',
       body: JSON.stringify({ texto }),
@@ -236,6 +249,29 @@ var RebussAPI = (function () {
     importar: (dados) => request('/operacoes/importar', {
       method: 'POST',
       body: JSON.stringify(dados),
+    }),
+    importarEquipe: (id, dados) => request(`/operacoes/${encodeURIComponent(id)}/importar-equipe`, {
+      method: 'POST',
+      body: JSON.stringify(dados),
+    }),
+    update: (id, dados) => request(`/operacoes/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(dados),
+    }),
+    updateStatus: (id, usuarioId, status) => request(`/operacoes/${encodeURIComponent(id)}/membros/${encodeURIComponent(usuarioId)}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    }),
+    updateObservacoes: (id, observacoes) => request(`/operacoes/${encodeURIComponent(id)}/observacoes`, {
+      method: 'PUT',
+      body: JSON.stringify({ observacoes }),
+    }),
+    addMembro: (id, dados) => request(`/operacoes/${encodeURIComponent(id)}/membros`, {
+      method: 'POST',
+      body: JSON.stringify(dados),
+    }),
+    removeMembro: (id, membroId) => request(`/operacoes/${encodeURIComponent(id)}/membros/${encodeURIComponent(membroId)}`, {
+      method: 'DELETE',
     }),
     finalizar: (id) => request(`/operacoes/${encodeURIComponent(id)}/finalizar`, {
       method: 'PUT',
