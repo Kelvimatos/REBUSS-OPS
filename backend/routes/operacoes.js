@@ -30,52 +30,27 @@ function cleanPersonName(rawText) {
   if (!rawText) return '';
   let text = rawText;
 
-  const mdLinkMatch = text.match(/\[(.*?)\](?:\(.*?\))?/);
+  // Se vier com formato markdown link [109186 - Nome](url)
+  const mdLinkMatch = text.match(/\[(?:\d+\s*[-–—:]\s*)?(.*?)\](?:\(.*?\))?/);
   if (mdLinkMatch) {
     text = mdLinkMatch[1];
   }
 
+  // Remove matrícula do início caso ainda reste
   text = text.replace(/^\s*\d{3,8}\s*[-–—:]\s*/, '');
   text = text.replace(/^\s*\d+[\.\)\-]?\s*/, '');
   text = text.replace(/\([^)]*\)/g, ' ');
   text = text.replace(/https?:\/\/\S+/gi, ' ');
-
-  const statusPatterns = [
-    /\b(No\s+confirmado|Não\s+confirmado|Nao\s+confirmado|Confirmado|Confirmada|Pendente|Presente|Faltou|Falta|Recusou|Recusado|Em\s+Loja|A\s+Caminho|Atrasado|Atrasada|Desistência|Substituído|Substituido|Cancelado)\b/gi,
-  ];
-  for (const sp of statusPatterns) {
-    text = text.replace(sp, ' ');
-  }
-
-  const cargoKeywords = [
-    'SUPERVISOR GENERAL', 'SUPERVISOR GERAL', 'SUPERVISOR', 'SUPERVISORA',
-    'CHEFE DE GRUPO', 'OP. SISTEMA', 'OPERADOR DE SISTEMA',
-    'CONTADOR', 'CONTADORA', 'OPERADOR', 'OPERADORA', 'AUXILIAR',
-    'ESCANEADOR', 'ESCANEADORA', 'LÍDER', 'CONFERENTE', 'AUDITOR', 'AUDITORA'
-  ];
-  for (const ck of cargoKeywords) {
-    text = text.replace(new RegExp(`\\b${ck}\\b`, 'gi'), ' ');
-  }
-
-  const citiesAndStates = [
-    'Rio de Janeiro', 'São Paulo', 'Belo Horizonte', 'Juiz de Fora',
-    'Curitiba', 'Brasília', 'Brasilia', 'Goiânia', 'Goiania',
-    'Campinas', 'Niterói', 'Niteroi', 'Salvador', 'Fortaleza', 'Recife'
-  ];
-  for (const cs of citiesAndStates) {
-    text = text.replace(new RegExp(`\\b${cs}\\b`, 'gi'), ' ');
-  }
-  text = text.replace(/\b(RJ|SP|MG|DF|GO|PR|BA|CE|PE|RS|SC|ES)\b/gi, ' ');
-  text = text.replace(/\b\d{2}\s*9?\d{4,5}\s*[-.]?\s*\d{4}\b/g, ' ');
-  text = text.replace(/\b\d{4,12}\b/g, ' ');
-  text = text.replace(/[\*\-\—\–\:\;\,\/\\\|\#\_\•\[\]\(\)]/g, ' ');
+  text = text.replace(/[*_#]/g, ' ');
   text = text.replace(/\s+/g, ' ').trim();
 
   return text;
 }
 
 /**
- * Parser de texto da equipe
+ * Parser de texto da equipe da aba Operações
+ * Extrai rigorosamente: Nome, Cidade, Matrícula (string) e Telefone.
+ * Descarta: Cargo, URL, PH/I, número inútil antes da cidade e Status.
  */
 function parseEquipeText(rawText) {
   if (!rawText || !rawText.trim()) {
@@ -88,95 +63,116 @@ function parseEquipeText(rawText) {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (/^\|\s*Cargo\b/i.test(line) || /^\|\s*[-:\s|]+\s*$/i.test(line)) {
-      continue;
-    }
 
-    let cargo = 'Operador';
-    let codigo = null;
+    // Ignorar linhas de cabeçalho markdown ou separadores
+    if (/^\|\s*[-:\s|]+\s*$/.test(line)) continue;
+    if (/^\|\s*(Cargo|Função|Nome|Colaborador)\b/i.test(line)) continue;
+
+    let matricula = '';
     let nome = '';
-    let matricula = null;
     let cidade = '';
     let telefone = '';
-    let statusImportado = 'PENDENTE';
 
-    if (line.includes('|')) {
-      const parts = line.split('|').map(p => p.trim()).filter(p => p !== '');
-      if (parts.length >= 2) {
-        const cargoCand = parts[0];
-        if (cargoCand && !cargoCand.startsWith('[')) {
-          cargo = cargoCand.replace(/[*_]/g, '').trim() || 'Operador';
-        }
+    // 1. Extração da Matrícula e Nome dentro dos colchetes: [109186 - Albetisa Rodrigues Da Silva]
+    const bracketMatch = line.match(/\[\s*(\d+)\s*[-–—:]\s*([^\]]+)\]/);
+    if (bracketMatch) {
+      matricula = String(bracketMatch[1]).trim();
+      nome = bracketMatch[2]
+        .replace(/\([^)]*\)/g, '')
+        .replace(/[*_#]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    } else {
+      // Fallback para linhas sem colchetes: 109186 - Nome Sobrenome
+      const fallbackCode = line.match(/(?:^|\|\s*)(\d{4,8})\s*[-–—:]\s*([A-Za-zÀ-ÖØ-öø-ÿ\s'.]+?)(?=(?:\s*\||\s*\(|\s*\d{6,}|\s*$))/);
+      if (fallbackCode) {
+        matricula = String(fallbackCode[1]).trim();
+        nome = fallbackCode[2]
+          .replace(/\([^)]*\)/g, '')
+          .replace(/[*_#]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      }
+    }
 
-        let personCand = parts.find(p => p.includes('[') || /\b\d{4,8}\s*[-–—]/.test(p)) || parts[1] || '';
-        const codeMatch = personCand.match(/(?:\[|\b)(\d{4,8})\s*[-–—]/) || line.match(/\[(\d{4,8})\s*[-–—]/);
-        if (codeMatch) {
-          codigo = codeMatch[1];
-        }
+    if (!nome && !matricula) continue;
 
-        nome = cleanPersonName(personCand);
+    // 2. Extração de Cidade e Telefone através das colunas da tabela
+    const delimiter = line.includes('|') ? '|' : (line.includes('\t') ? '\t' : null);
 
-        for (let pIdx = 1; pIdx < parts.length; pIdx++) {
-          const p = parts[pIdx];
-          const matM = p.match(/^\b(\d{6,12})\b$/);
-          if (matM && matM[1] !== codigo) {
-            matricula = matM[1];
-            break;
+    if (delimiter) {
+      const parts = line.split(delimiter).map(p => p.trim());
+      // Localizar o índice da célula que contém o nome/matrícula
+      const nameCellIdx = parts.findIndex(p =>
+        p.includes('[') ||
+        (matricula && p.includes(matricula)) ||
+        (nome && p.includes(nome))
+      );
+
+      if (nameCellIdx !== -1) {
+        const afterCells = parts.slice(nameCellIdx + 1).filter(p => p !== '');
+        let foundUselessNumber = false;
+        let foundCidade = false;
+
+        for (const cell of afterCells) {
+          const trimmedCell = cell.trim();
+          if (!trimmedCell) continue;
+
+          // Ignorar qualquer status (Confirmado, No confirmado, etc.)
+          if (/^(Confirmado|Confirmada|No\s+confirmado|No\s+confirma|Não\s+confirmado|Nao\s+confirmado|Pendente|Presente|Falta|Faltou|Atrasado|Atrasada|Recusado|Recusou|Cancelado)$/i.test(trimmedCell)) {
+            continue;
           }
-        }
 
-        for (let pIdx = 1; pIdx < parts.length; pIdx++) {
-          const p = parts[pIdx];
-          const telM = p.match(/(?:\(?\d{2}\)?\s*)?9?\d{4}[-.\s]?\d{4}/);
-          if (telM) {
-            telefone = telM[0].replace(/\D/g, '');
-            break;
+          // Ignorar qualquer cargo que apareça em células posteriores
+          if (/^(Supervisor\s+general|Supervisor\s+geral|Supervisor|Supervisora|Jefe\s+de\s+grupo|Chefe\s+de\s+grupo|Operador|Operadora|Escaneador|Escaneadora|Op\.\s*Sistema|Contador|Contadora|Auxiliar|Líder|Conferente)$/i.test(trimmedCell)) {
+            continue;
           }
-        }
 
-        for (let pIdx = 1; pIdx < parts.length; pIdx++) {
-          const p = parts[pIdx];
-          const stMatch = p.match(/\b(Confirmado|Confirmada|Pendente|Presente|Faltou|Falta|Recusou|Recusado|Em\s+Loja|A\s+Caminho|Atrasado|Cancelado)\b/i);
-          if (stMatch) {
-            const stStr = stMatch[1].toUpperCase().replace(/\s+/g, '_');
-            if (stStr === 'PRESENTE') statusImportado = 'EM_LOJA';
-            else if (stStr === 'FALTA') statusImportado = 'FALTOU';
-            else if (stStr === 'CONFIRMADA') statusImportado = 'CONFIRMADO';
-            else if (STATUS_VALIDOS.includes(stStr)) statusImportado = stStr;
+          // 1º número após o nome/link é o NÚMERO INÚTIL (ex: 00090765303, 19432854) -> DESCARTAR!
+          if (!foundUselessNumber && /^\d{6,15}$/.test(trimmedCell)) {
+            foundUselessNumber = true;
+            continue;
+          }
+
+          // Célula após o número inútil é a CIDADE
+          if (!foundCidade) {
+            // Garante que não é padrão de telefone
+            if (!/^[\d\(\)\s\-\+]{8,20}$/.test(trimmedCell) && !/\(?\d{2}\)?\s*9?\d{4}[-.\s]?\d{4}/.test(trimmedCell)) {
+              cidade = trimmedCell;
+              foundCidade = true;
+              continue;
+            }
+          }
+
+          // Célula após a cidade é o TELEFONE
+          if (!telefone && (/^[\d\(\)\s\-\+]{8,20}$/.test(trimmedCell) || /\(?\d{2}\)?\s*9?\d{4}[-.\s]?\d{4}/.test(trimmedCell))) {
+            telefone = trimmedCell;
             break;
           }
         }
       }
-    } else {
-      const codeMatch = line.match(/(?:\[|\b)(\d{4,8})\s*[-–—]/);
-      if (codeMatch) codigo = codeMatch[1];
-
-      const matM = line.match(/\b(\d{6,12})\b/);
-      if (matM && matM[1] !== codigo) matricula = matM[1];
-
-      const telM = line.match(/(?:\(?\d{2}\)?\s*)?9?\d{4}[-.\s]?\d{4}/);
-      if (telM) telefone = telM[0].replace(/\D/g, '');
-
-      const cargoMatch = line.match(/\b(Supervisor General|Supervisor Geral|Supervisor|Supervisora|Chefe de Grupo|Op\. Sistema|Operador de Sistema|Contador|Contadora|Operador|Operadora|Auxiliar|Escaneador|Escaneadora|Líder|Conferente)\b/i);
-      if (cargoMatch) cargo = cargoMatch[1];
-
-      nome = cleanPersonName(line);
     }
 
-    if (!nome || nome.length < 3) continue;
+    // Fallback para telefone se não encontrado por colunas
+    if (!telefone) {
+      const lineWithoutBrackets = line.replace(/\[[^\]]+\](?:\([^)]*\))?/g, ' ');
+      const telMatch = lineWithoutBrackets.match(/\(?\d{2}\)?\s*9?\d{4}[-.\s]?\d{4}/);
+      if (telMatch) telefone = telMatch[0].trim();
+    }
 
-    const dedupKey = `${codigo || ''}_${nome.toLowerCase()}`;
+    // Deduplicação na mesma importação pela chave matricula_nome
+    const dedupKey = `${matricula}_${nome.toLowerCase()}`;
     if (processedKeys.has(dedupKey)) continue;
     processedKeys.add(dedupKey);
 
     colaboradores.push({
-      codigo,
       nome,
-      matricula,
-      cargo,
-      cidade,
+      cidade: cidade || 'São Paulo',
+      matricula: String(matricula),
+      codigo: String(matricula),
       telefone,
-      status: statusImportado,
+      cargo: 'Operador',
+      status: 'PENDENTE',
     });
   }
 
@@ -878,15 +874,19 @@ router.post('/:id/importar-equipe', async (req, res) => {
     let vinculados = 0;
 
     for (const colab of colaboradores) {
-      const nomeLimpo = cleanPersonName(colab.nome);
+      const nomeLimpo = colab.nome ? colab.nome.trim() : '';
       if (!nomeLimpo) continue;
 
+      const matriculaStr = colab.matricula ? String(colab.matricula).trim() : null;
+      const telefoneStr = colab.telefone ? String(colab.telefone).trim() : null;
+      const cidadeStr = colab.cidade ? String(colab.cidade).trim() : (escala.loja.cidade || 'São Paulo');
+
       let user = null;
-      if (colab.codigo) {
-        user = await prisma.usuario.findFirst({ where: { codigo: colab.codigo } });
+      if (matriculaStr) {
+        user = await prisma.usuario.findFirst({ where: { matricula: matriculaStr } });
       }
-      if (!user && colab.matricula) {
-        user = await prisma.usuario.findFirst({ where: { matricula: colab.matricula } });
+      if (!user && colab.codigo) {
+        user = await prisma.usuario.findFirst({ where: { codigo: String(colab.codigo).trim() } });
       }
       if (!user) {
         user = await prisma.usuario.findFirst({
@@ -898,17 +898,30 @@ router.post('/:id/importar-equipe', async (req, res) => {
         user = await prisma.usuario.create({
           data: {
             nome: nomeLimpo,
-            codigo: colab.codigo || null,
-            matricula: colab.matricula || null,
-            telefone: colab.telefone || null,
-            cidade: colab.cidade || escala.loja.cidade || 'São Paulo',
+            codigo: matriculaStr || colab.codigo || null,
+            matricula: matriculaStr || null,
+            telefone: telefoneStr || null,
+            cidade: cidadeStr,
             estado: escala.loja.estado || 'SP',
           },
         });
         novosCadastrados++;
+      } else {
+        // Se o usuário já existe mas tem telefone/cidade vazios, atualiza com os dados importados
+        const updateUserData = {};
+        if (!user.matricula && matriculaStr) updateUserData.matricula = matriculaStr;
+        if (!user.codigo && matriculaStr) updateUserData.codigo = matriculaStr;
+        if (!user.telefone && telefoneStr) updateUserData.telefone = telefoneStr;
+        if (!user.cidade && cidadeStr) updateUserData.cidade = cidadeStr;
+        if (Object.keys(updateUserData).length > 0) {
+          await prisma.usuario.update({
+            where: { id: user.id },
+            data: updateUserData,
+          });
+        }
       }
 
-      const statusInicial = colab.status || 'PENDENTE';
+      const statusInicial = 'PENDENTE';
       const initialHistory = JSON.stringify([
         { status: statusInicial, horario: new Date().toISOString() }
       ]);
@@ -919,12 +932,12 @@ router.post('/:id/importar-equipe', async (req, res) => {
           data: {
             escalaId: escala.id,
             usuarioId: user.id,
-            codigo: colab.codigo || user.codigo || null,
-            cargo: colab.cargo || 'Operador',
+            codigo: matriculaStr || user.codigo || null,
+            cargo: 'Operador',
             status: statusInicial,
-            confirmou: statusInicial === 'CONFIRMADO',
-            cidade: colab.cidade || user.cidade || null,
-            telefone: colab.telefone || user.telefone || null,
+            confirmou: false,
+            cidade: cidadeStr || user.cidade || null,
+            telefone: telefoneStr || user.telefone || null,
             historicoStatus: initialHistory,
           },
         });

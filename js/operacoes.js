@@ -979,13 +979,10 @@ const OperacoesModule = (() => {
         previewTbody.innerHTML = state.analiseEquipe.map((c, i) => `
           <tr>
             <td>${i + 1}</td>
-            <td><span class="ops-role-pill">${c.cargo || 'Operador'}</span></td>
-            <td><code>${c.codigo || '—'}</code></td>
             <td><strong>${c.nome}</strong></td>
-            <td>${c.matricula || '—'}</td>
+            <td><code style="font-weight:700; color:var(--primary);">${c.matricula || '—'}</code></td>
             <td>${c.cidade || '—'}</td>
             <td>${c.telefone || '—'}</td>
-            <td><span class="ops-status-tag status-${(c.status || 'PENDENTE').toLowerCase()}">${c.status || 'PENDENTE'}</span></td>
           </tr>
         `).join('');
       }
