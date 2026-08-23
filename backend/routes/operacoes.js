@@ -24,6 +24,16 @@ const STATUS_VALIDOS = [
 ];
 
 /**
+ * Retorna o filtro Prisma para localizar a operação respeitando papéis ADMIN/GESTOR e Multi-Tenant
+ */
+function getOperacaoWhere(id, userSistema) {
+  if (userSistema && (userSistema.perfil === 'ADMIN' || userSistema.perfil === 'GESTOR')) {
+    return { id };
+  }
+  return { id, usuarioSistemaId: userSistema?.id };
+}
+
+/**
  * Limpa e normaliza o nome do colaborador, garantindo que contenha SOMENTE o nome.
  */
 function cleanPersonName(rawText) {
@@ -701,10 +711,7 @@ router.get('/hoje', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const op = await prisma.escala.findFirst({
-      where: {
-        id: req.params.id,
-        usuarioSistemaId: req.userSistema.id,
-      },
+      where: getOperacaoWhere(req.params.id, req.userSistema),
       include: {
         loja: true,
         membros: {
@@ -982,7 +989,7 @@ router.put('/:id', async (req, res) => {
     const { lojaNome, data, horario, pivNecessario, cidade, estado } = req.body;
 
     const op = await prisma.escala.findFirst({
-      where: { id, usuarioSistemaId: req.userSistema.id },
+      where: getOperacaoWhere(id, req.userSistema),
       include: { loja: true },
     });
 
@@ -1048,7 +1055,7 @@ router.put('/:id/membros/:usuarioId', async (req, res) => {
     const { nome, matricula, cidade, telefone, cargo } = req.body;
 
     const op = await prisma.escala.findFirst({
-      where: { id: escalaId, usuarioSistemaId: req.userSistema.id },
+      where: getOperacaoWhere(escalaId, req.userSistema),
     });
 
     if (!op) return res.status(404).json({ erro: 'Operação não encontrada ou não pertence ao seu usuário' });
@@ -1119,7 +1126,7 @@ router.put('/:id/membros/:usuarioId/status', async (req, res) => {
 
     // Verificar se a escala pertence ao usuário
     const escala = await prisma.escala.findFirst({
-      where: { id: escalaId, usuarioSistemaId: req.userSistema.id },
+      where: getOperacaoWhere(escalaId, req.userSistema),
     });
 
     if (!escala) {
@@ -1202,7 +1209,7 @@ router.put('/:id/observacoes', async (req, res) => {
     const { observacoes } = req.body;
 
     const op = await prisma.escala.findFirst({
-      where: { id, usuarioSistemaId: req.userSistema.id },
+      where: getOperacaoWhere(id, req.userSistema),
     });
 
     if (!op) return res.status(404).json({ erro: 'Operação não encontrada ou não pertence ao seu usuário' });
@@ -1233,7 +1240,7 @@ router.put('/:id/finalizar', async (req, res) => {
     const { id } = req.params;
 
     const op = await prisma.escala.findFirst({
-      where: { id, usuarioSistemaId: req.userSistema.id },
+      where: getOperacaoWhere(id, req.userSistema),
       include: { loja: true, membros: true },
     });
 
@@ -1281,7 +1288,7 @@ router.post('/:id/membros', async (req, res) => {
     if (!usuarioId) return res.status(400).json({ erro: 'usuarioId é obrigatório' });
 
     const op = await prisma.escala.findFirst({
-      where: { id, usuarioSistemaId: req.userSistema.id },
+      where: getOperacaoWhere(id, req.userSistema),
     });
 
     if (!op) return res.status(404).json({ erro: 'Operação não encontrada ou não pertence ao seu usuário' });
@@ -1320,7 +1327,7 @@ router.delete('/:id/membros/:membroId', async (req, res) => {
     const { id, membroId } = req.params;
 
     const op = await prisma.escala.findFirst({
-      where: { id, usuarioSistemaId: req.userSistema.id },
+      where: getOperacaoWhere(id, req.userSistema),
     });
 
     if (!op) return res.status(404).json({ erro: 'Operação não encontrada ou não pertence ao seu usuário' });

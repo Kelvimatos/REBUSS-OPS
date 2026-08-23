@@ -110,6 +110,10 @@ function createPrismaClient() {
     ssl: isLocal ? false : { rejectUnauthorized: false },
   });
 
+  pool.on('error', (err) => {
+    console.warn('[Prisma PG Pool] Aviso de cliente idle:', err.message);
+  });
+
   const adapter = new PrismaPg(pool);
   return new PrismaClient({ adapter });
 }

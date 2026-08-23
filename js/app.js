@@ -75,7 +75,19 @@ const App = (() => {
     let posY = 50;
 
     if (typeof entry === 'string') {
-      dataStr = entry;
+      const trimmed = entry.trim();
+      if (trimmed.startsWith('{') && trimmed.includes('"data"')) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          dataStr = parsed.data || null;
+          posX = parsed.posX ?? 50;
+          posY = parsed.posY ?? 50;
+        } catch {
+          dataStr = entry;
+        }
+      } else {
+        dataStr = entry;
+      }
     } else if (entry.data) {
       dataStr = entry.data;
       posX = entry.posX ?? 50;
@@ -103,7 +115,7 @@ const App = (() => {
     try {
       localStorage.setItem('rebuss_user_photos', JSON.stringify(map));
     } catch (e) {
-      console.warn('Erro ao salvar foto de perfil:', e);
+      console.warn('Erro ao salvar foto de perfil no armazenamento local:', e);
     }
   }
 
@@ -111,7 +123,7 @@ const App = (() => {
     const targetUser = user || getActiveUser();
     if (!targetUser) return null;
 
-    // 1. Prioridade: fotoPerfil do usuário autenticado no AuthModule
+    // 1. Prioridade máxima: fotoPerfil do usuário autenticado no AuthModule (Vindo do PostgreSQL)
     if (window.AuthModule && typeof window.AuthModule.getCurrentUser === 'function') {
       const authUser = window.AuthModule.getCurrentUser();
       if (authUser && (authUser.id === targetUser.id || authUser.email === targetUser.email || !targetUser.id)) {
@@ -182,26 +194,33 @@ const App = (() => {
   async function setCustomPhoto(userId, base64Data, posX = 50, posY = 50) {
     const activeUser = getActiveUser();
     const targetUserId = userId || activeUser.id;
+    const photoPayload = JSON.stringify({ data: base64Data, posX, posY });
+
+    // Salvar localmente como fallback rápido
     const map = getUserPhotosMap();
     map[targetUserId] = { data: base64Data, posX, posY };
     saveUserPhotosMap(map);
 
-    // Sincronizar com AuthModule e banco de dados
+    // Sincronizar com AuthModule
     if (window.AuthModule && typeof window.AuthModule.getCurrentUser === 'function') {
       const authUser = window.AuthModule.getCurrentUser();
       if (authUser) {
-        authUser.fotoPerfil = base64Data;
+        authUser.fotoPerfil = photoPayload;
         if (typeof window.AuthModule.setCurrentUser === 'function') {
           window.AuthModule.setCurrentUser(authUser);
         }
       }
     }
 
+    // Persistir no banco de dados PostgreSQL via API
     if (window.RebussAPI && RebussAPI.auth && typeof RebussAPI.auth.updateFoto === 'function' && RebussAPI.getToken()) {
       try {
-        await RebussAPI.auth.updateFoto(base64Data);
+        const res = await RebussAPI.auth.updateFoto(photoPayload);
+        if (res && res.usuario && window.AuthModule && typeof window.AuthModule.setCurrentUser === 'function') {
+          window.AuthModule.setCurrentUser(res.usuario);
+        }
       } catch (err) {
-        console.warn('Aviso: Não foi possível sincronizar foto com o servidor:', err.message);
+        console.error('Erro ao salvar foto de perfil no banco de dados:', err);
       }
     }
 
@@ -213,18 +232,43 @@ const App = (() => {
     if (btnAdjust) btnAdjust.classList.remove('hide');
     if (btnRemove) btnRemove.classList.remove('hide');
 
-    showToast('Foto de perfil atualizada!', '✓');
+    showToast('Foto de perfil salva com sucesso!', '✓');
     playSound('copy');
   }
 
-  function updatePhotoPosition(userId, posX, posY) {
+  async function updatePhotoPosition(userId, posX, posY) {
     const activeUser = getActiveUser();
     const targetUserId = userId || activeUser.id;
+    const entry = getUserPhotoEntry(activeUser);
+    if (!entry || !entry.data) return;
+
+    const photoPayload = JSON.stringify({ data: entry.data, posX, posY });
+
+    // Atualizar mapa local
     const map = getUserPhotosMap();
-    const entry = normalizePhotoEntry(map[targetUserId]);
-    if (!entry) return;
     map[targetUserId] = { data: entry.data, posX, posY };
     saveUserPhotosMap(map);
+
+    // Atualizar AuthModule
+    if (window.AuthModule && typeof window.AuthModule.getCurrentUser === 'function') {
+      const authUser = window.AuthModule.getCurrentUser();
+      if (authUser) {
+        authUser.fotoPerfil = photoPayload;
+        if (typeof window.AuthModule.setCurrentUser === 'function') {
+          window.AuthModule.setCurrentUser(authUser);
+        }
+      }
+    }
+
+    // Persistir novo enquadramento no PostgreSQL
+    if (window.RebussAPI && RebussAPI.auth && typeof RebussAPI.auth.updateFoto === 'function' && RebussAPI.getToken()) {
+      try {
+        await RebussAPI.auth.updateFoto(photoPayload);
+      } catch (err) {
+        console.error('Erro ao salvar enquadramento no banco:', err);
+      }
+    }
+
     updateAllUserAvatars();
     renderModalPhotoPreview(activeUser);
     showToast('Posicionamento salvo!', '✓');

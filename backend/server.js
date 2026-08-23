@@ -37,16 +37,31 @@ const PORT = process.env.PORT || 3001;
 app.use(cors({
   origin: true,
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
-// Normaliza o caminho se a requisição for roteada via Netlify Functions
+// Normaliza o caminho se a requisição for roteada via Netlify Functions ou serverless
 app.use((req, res, next) => {
-  if (req.url.startsWith('/.netlify/functions/api')) {
-    req.url = req.url.replace('/.netlify/functions/api', '/api');
+  if (req.url.startsWith('/.netlify/functions/api/')) {
+    req.url = req.url.replace('/.netlify/functions/api/', '/api/');
+  } else if (req.url === '/.netlify/functions/api') {
+    req.url = '/api';
+  } else if (!req.url.startsWith('/api/') && !req.url.startsWith('/api') && (
+    req.url.startsWith('/auth') ||
+    req.url.startsWith('/operacoes') ||
+    req.url.startsWith('/dashboard') ||
+    req.url.startsWith('/historico') ||
+    req.url.startsWith('/usuarios') ||
+    req.url.startsWith('/equipes') ||
+    req.url.startsWith('/lojas') ||
+    req.url.startsWith('/escalas') ||
+    req.url.startsWith('/ocorrencias') ||
+    req.url.startsWith('/admin')
+  )) {
+    req.url = '/api' + req.url;
   }
   next();
 });
