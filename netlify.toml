@@ -9,6 +9,13 @@
   NODE_VERSION = "20"
   NPM_FLAGS = "--include=optional"
 
+# Configuração explícita do bundler das Functions para ES Modules (Node 20 + esbuild)
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+  included_files = ["generated/**"]
+
+
 # Redirecionar todas as chamadas /api/* para a função serverless Netlify
 [[redirects]]
   from = "/api/*"
