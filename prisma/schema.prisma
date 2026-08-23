@@ -1,4 +1,5 @@
 // Prisma schema
+// REBUSS OPS — PostgreSQL / Supabase Schema com Isolamento Multi-Usuário (Multi-Tenant)
 
 generator client {
   provider = "prisma-client-js"
@@ -10,17 +11,22 @@ datasource db {
 }
 
 model UsuarioSistema {
-  id        String   @id @default(uuid())
-  nome      String
-  email     String   @unique
-  senhaHash String
-  perfil    String   @default("OPERADOR") // ADMIN, GESTOR, OPERADOR
-  ativo     Boolean  @default(true)
-  telefone  String?
-  cidade    String?
-  estado    String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(uuid())
+  nome       String
+  email      String   @unique
+  senhaHash  String
+  perfil     String   @default("OPERADOR") // ADMIN, GESTOR, OPERADOR
+  ativo      Boolean  @default(true)
+  telefone   String?
+  cidade     String?
+  estado     String?
+  fotoPerfil String?  // Foto personalizada do usuário (Base64 ou URL)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  lojas          Loja[]
+  escalas        Escala[]
+  importacoesLog ImportacaoLog[]
 }
 
 model Usuario {
@@ -63,37 +69,45 @@ model EquipeMembro {
 }
 
 model Loja {
-  id        String   @id @default(uuid())
-  nome      String
-  endereco  String?
-  cidade    String?
-  estado    String?
-  cep       String?
-  latitude  Float?
-  longitude Float?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String   @id @default(uuid())
+  usuarioSistemaId String?
+  nome             String
+  endereco         String?
+  cidade           String?
+  estado           String?
+  cep              String?
+  latitude         Float?
+  longitude        Float?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  escalas Escala[]
+  usuarioSistema UsuarioSistema? @relation(fields: [usuarioSistemaId], references: [id], onDelete: Cascade)
+  escalas        Escala[]
+
+  @@index([usuarioSistemaId])
 }
 
 model Escala {
-  id            String    @id @default(uuid())
-  lojaId        String
-  data          DateTime
-  horario       String
-  pivNecessario Int?
-  observacoes   String?
-  status        String    @default("ABERTA") // ABERTA, EM_ANDAMENTO, FINALIZADA, CANCELADA
-  importadoPor  String?
-  importadoEm   DateTime  @default(now())
-  finalizadoEm  DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id               String    @id @default(uuid())
+  usuarioSistemaId String?
+  lojaId           String
+  data             DateTime
+  horario          String
+  pivNecessario    Int?
+  observacoes      String?
+  status           String    @default("ABERTA") // ABERTA, EM_ANDAMENTO, FINALIZADA, CANCELADA
+  importadoPor     String?
+  importadoEm      DateTime  @default(now())
+  finalizadoEm     DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-  loja       Loja           @relation(fields: [lojaId], references: [id])
-  membros    EscalaMembro[]
-  statusLogs StatusLog[]
+  usuarioSistema UsuarioSistema? @relation(fields: [usuarioSistemaId], references: [id], onDelete: Cascade)
+  loja           Loja            @relation(fields: [lojaId], references: [id])
+  membros        EscalaMembro[]
+  statusLogs     StatusLog[]
+
+  @@index([usuarioSistemaId])
 }
 
 model EscalaMembro {
@@ -141,6 +155,7 @@ model Ocorrencia {
 
 model ImportacaoLog {
   id               String   @id @default(uuid())
+  usuarioSistemaId String?
   dataHora         DateTime @default(now())
   usuarioNome      String?
   lojaNome         String
@@ -152,4 +167,8 @@ model ImportacaoLog {
   erros            Int      @default(0)
   detalhes         String?
   escalaId         String?
+
+  usuarioSistema UsuarioSistema? @relation(fields: [usuarioSistemaId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioSistemaId])
 }

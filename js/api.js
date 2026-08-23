@@ -132,6 +132,13 @@ var RebussAPI = (function () {
       return data;
     },
     me: () => request('/auth/me'),
+    updateFoto: (fotoBase64) => request('/auth/foto', {
+      method: 'PUT',
+      body: JSON.stringify({ foto: fotoBase64 }),
+    }),
+    removeFoto: () => request('/auth/foto', {
+      method: 'DELETE',
+    }),
     logout: async () => {
       try {
         await request('/auth/logout', { method: 'POST' });
@@ -153,6 +160,9 @@ var RebussAPI = (function () {
     }),
     deleteUsuario: (id) => request(`/admin/usuarios/${encodeURIComponent(id)}`, {
       method: 'DELETE',
+    }),
+    resetDadosOperacionais: () => request('/admin/reset-dados-operacionais', {
+      method: 'POST',
     }),
   };
 

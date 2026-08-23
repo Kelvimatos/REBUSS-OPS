@@ -155,4 +155,37 @@ router.delete('/usuarios/:id', async (req, res) => {
   }
 });
 
+// POST /api/admin/reset-dados-operacionais (Zera lojas, escalas, operações e histórico)
+router.post('/reset-dados-operacionais', async (req, res) => {
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const ocorrencias = await tx.ocorrencia.deleteMany({});
+      const statusLogs = await tx.statusLog.deleteMany({});
+      const escalaMembros = await tx.escalaMembro.deleteMany({});
+      const escalas = await tx.escala.deleteMany({});
+      const importacaoLogs = await tx.importacaoLog.deleteMany({});
+      const lojas = await tx.loja.deleteMany({});
+
+      return {
+        ocorrencias: ocorrencias.count,
+        statusLogs: statusLogs.count,
+        escalaMembros: escalaMembros.count,
+        escalas: escalas.count,
+        importacaoLogs: importacaoLogs.count,
+        lojas: lojas.count
+      };
+    });
+
+    res.json({
+      sucesso: true,
+      mensagem: 'Dados operacionais, lojas e histórico zerados com sucesso para início oficial.',
+      registrosRemovidos: result
+    });
+  } catch (err) {
+    console.error('POST /api/admin/reset-dados-operacionais:', err);
+    res.status(500).json({ erro: 'Erro ao zerar dados operacionais', detalhe: err.message });
+  }
+});
+
 export default router;
+

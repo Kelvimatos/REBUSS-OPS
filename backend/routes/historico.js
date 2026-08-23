@@ -1,15 +1,15 @@
 /**
  * REBUSS OPS — Rotas de Histórico Operacional Permanente
- * GET /api/historico/arvore
- * GET /api/historico/operacoes
- * GET /api/historico/colaborador/:idOrMatricula
- * GET /api/historico/indicadores
+ * Isolamento Multi-Usuário (Multi-Tenant) — Histórico privado do usuário logado
  */
 
 import { Router } from 'express';
 import prisma from '../lib/prisma.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = Router();
+
+router.use(authenticateToken);
 
 const MESES_NOMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -93,7 +93,7 @@ function buildDateRange(periodo, dataInicio, dataFim, anoParam, mesParam) {
   return undefined;
 }
 
-// GET /api/historico/arvore (Estrutura Ano ➔ Mês ➔ Dia ➔ Operações)
+// GET /api/historico/arvore (Estrutura Ano ➔ Mês ➔ Dia ➔ Operações do Usuário)
 router.get('/arvore', async (req, res) => {
   try {
     const { ano = 2026 } = req.query;
@@ -104,6 +104,7 @@ router.get('/arvore', async (req, res) => {
 
     const escalas = await prisma.escala.findMany({
       where: {
+        usuarioSistemaId: req.userSistema.id,
         data: { gte: inicioAno, lte: fimAno },
       },
       include: {
@@ -186,7 +187,7 @@ router.get('/arvore', async (req, res) => {
   }
 });
 
-// GET /api/historico/operacoes (Listagem com filtros)
+// GET /api/historico/operacoes (Listagem com filtros por usuário)
 router.get('/operacoes', async (req, res) => {
   try {
     const {
@@ -200,18 +201,23 @@ router.get('/operacoes', async (req, res) => {
     } = req.query;
 
     const dateWhere = buildDateRange(periodo, dataInicio, dataFim);
-    const where = {};
+    const where = {
+      usuarioSistemaId: req.userSistema.id,
+    };
     if (dateWhere) where.data = dateWhere;
     if (lojaId) where.lojaId = lojaId;
     if (status) where.status = status.toUpperCase();
 
     if (cidade && cidade !== 'todas') {
-      where.loja = { cidade: { contains: cidade, mode: 'insensitive' } };
+      where.loja = {
+        usuarioSistemaId: req.userSistema.id,
+        cidade: { contains: cidade, mode: 'insensitive' },
+      };
     }
 
     if (busca) {
       where.OR = [
-        { loja: { nome: { contains: busca, mode: 'insensitive' } } },
+        { loja: { nome: { contains: busca, mode: 'insensitive' }, usuarioSistemaId: req.userSistema.id } },
         { membros: { some: { usuario: { nome: { contains: busca, mode: 'insensitive' } } } } },
         { membros: { some: { usuario: { matricula: { contains: busca } } } } },
       ];
@@ -221,72 +227,85 @@ router.get('/operacoes', async (req, res) => {
       where,
       include: {
         loja: true,
-        membros: { include: { usuario: true } },
+        membros: {
+          include: { usuario: true },
+        },
+        statusLogs: {
+          orderBy: { criadoEm: 'desc' },
+          take: 5,
+        },
       },
       orderBy: [{ data: 'desc' }, { horario: 'asc' }],
     });
 
-    const formatadas = escalas.map(e => {
-      const confirmados = e.membros.filter(m => m.confirmou).length;
-      const presentes = e.membros.filter(m => m.status === 'EM_LOJA' || m.chegou).length;
-      const faltas = e.membros.filter(m => m.status === 'FALTOU').length;
-      const atrasos = e.membros.filter(m => m.status === 'ATRASADO').length;
+    const formatadas = escalas.map(op => {
+      const pivNecessario = op.pivNecessario || op.membros.length;
+      const confirmados = op.membros.filter(m => m.confirmou).length;
+      const presentes = op.membros.filter(m => m.status === 'EM_LOJA' || m.chegou).length;
+      const faltas = op.membros.filter(m => m.status === 'FALTOU').length;
+      const atrasos = op.membros.filter(m => m.status === 'ATRASADO').length;
 
       return {
-        id: e.id,
-        loja: e.loja.nome,
-        cidade: e.loja.cidade || 'SP',
-        estado: e.loja.estado || 'SP',
-        endereco: e.loja.endereco || '',
-        data: e.data,
-        horario: e.horario,
-        status: e.status,
-        importadoPor: e.importadoPor,
-        importadoEm: e.importadoEm,
-        finalizadoEm: e.finalizadoEm,
-        pivNecessario: e.pivNecessario || e.membros.length,
+        id: op.id,
+        lojaId: op.loja.id,
+        loja: op.loja.nome,
+        cidade: op.loja.cidade || 'SP',
+        estado: op.loja.estado || 'SP',
+        endereco: op.loja.endereco || '',
+        data: op.data,
+        horario: op.horario,
+        status: op.status,
+        observacoes: op.observacoes,
+        importadoPor: op.importadoPor,
+        importadoEm: op.importadoEm,
+        finalizadoEm: op.finalizadoEm,
+        pivNecessario,
         confirmados,
         presentes,
         faltas,
         atrasos,
-        totalMembros: e.membros.length,
-        membros: e.membros.map(m => ({
+        totalMembros: op.membros.length,
+        membros: op.membros.map(m => ({
           id: m.id,
-          usuarioId: m.usuarioId,
-          matricula: m.usuario.matricula || '—',
+          usuarioId: m.usuario.id,
           nome: m.usuario.nome,
+          matricula: m.usuario.matricula || '—',
           cargo: m.cargo || 'Operador',
           status: m.status,
           confirmou: m.confirmou,
           chegou: m.chegou,
         })),
+        timeline: op.statusLogs,
       };
     });
 
     res.json(formatadas);
   } catch (err) {
     console.error('GET /api/historico/operacoes:', err);
-    res.status(500).json({ erro: 'Erro ao buscar histórico de operações', detalhe: err.message });
+    res.status(500).json({ erro: 'Erro ao listar operações do histórico', detalhe: err.message });
   }
 });
 
-// GET /api/historico/colaborador/:idOrMatricula (Dossiê completo do colaborador)
+// GET /api/historico/colaborador/:idOrMatricula (Dossiê Histórico individual filtrado por escalas do usuário)
 router.get('/colaborador/:idOrMatricula', async (req, res) => {
   try {
     const { idOrMatricula } = req.params;
 
-    // Localizar por ID, Código, Matrícula ou Nome
-    let usuario = await prisma.usuario.findFirst({
+    const usuario = await prisma.usuario.findFirst({
       where: {
         OR: [
           { id: idOrMatricula },
-          { codigo: idOrMatricula },
           { matricula: idOrMatricula },
-          { nome: { equals: idOrMatricula, mode: 'insensitive' } },
+          { codigo: idOrMatricula },
         ],
       },
       include: {
         escalas: {
+          where: {
+            escala: {
+              usuarioSistemaId: req.userSistema.id,
+            },
+          },
           include: {
             escala: {
               include: { loja: true },
@@ -298,136 +317,103 @@ router.get('/colaborador/:idOrMatricula', async (req, res) => {
     });
 
     if (!usuario) {
-      return res.status(404).json({ erro: 'Colaborador não encontrado no histórico.' });
+      return res.status(404).json({ erro: 'Colaborador não encontrado' });
     }
 
     const totalEscalas = usuario.escalas.length;
-    let presencas = 0;
-    let faltas = 0;
-    let atrasos = 0;
-    let recusas = 0;
-    let confirmados = 0;
+    const presencas = usuario.escalas.filter(e => e.status === 'EM_LOJA' || e.chegou).length;
+    const faltas = usuario.escalas.filter(e => e.status === 'FALTOU').length;
+    const atrasos = usuario.escalas.filter(e => e.status === 'ATRASADO').length;
+    const recusas = usuario.escalas.filter(e => e.status === 'RECUSADO').length;
 
-    const timeline = usuario.escalas.map(em => {
-      if (em.confirmou) confirmados++;
-      if (em.status === 'EM_LOJA' || em.chegou) presencas++;
-      if (em.status === 'FALTOU') faltas++;
-      if (em.status === 'ATRASADO') atrasos++;
-      if (em.status === 'RECUSADO') recusas++;
-
-      return {
-        escalaId: em.escala.id,
-        lojaNome: em.escala.loja.nome,
-        cidade: em.escala.loja.cidade || 'SP',
-        estado: em.escala.loja.estado || 'SP',
-        data: em.escala.data,
-        horario: em.escala.horario,
-        cargo: em.cargo || 'Operador',
-        statusPresenca: em.status,
-        confirmou: em.confirmou,
-        chegou: em.chegou,
-      };
-    });
-
-    const taxaPresenca = confirmados > 0 ? ((presencas / confirmados) * 100).toFixed(1) : (totalEscalas > 0 ? ((presencas / totalEscalas) * 100).toFixed(1) : 100);
-    const taxaAceitacao = totalEscalas > 0 ? ((confirmados / totalEscalas) * 100).toFixed(1) : 100;
+    let score = 100;
+    if (totalEscalas > 0) {
+      const taxaPres = (presencas / totalEscalas) * 100;
+      const penalidadeFalta = (faltas / totalEscalas) * 40;
+      const penalidadeAtraso = (atrasos / totalEscalas) * 20;
+      score = Math.max(0, Math.min(100, Math.round(taxaPres - penalidadeFalta - penalidadeAtraso)));
+    }
 
     res.json({
-      colaborador: {
-        id: usuario.id,
-        nome: usuario.nome,
-        codigo: usuario.codigo || usuario.matricula || '—',
-        matricula: usuario.matricula || '—',
-        telefone: usuario.telefone,
-        cidade: usuario.cidade,
-        estado: usuario.estado,
-        status: usuario.status,
-      },
-      indicadores: {
+      id: usuario.id,
+      nome: usuario.nome,
+      codigo: usuario.codigo,
+      matricula: usuario.matricula,
+      telefone: usuario.telefone,
+      cidade: usuario.cidade,
+      estado: usuario.estado,
+      status: usuario.status,
+      estatisticas: {
         totalEscalas,
         presencas,
         faltas,
         atrasos,
         recusas,
-        confirmados,
-        taxaPresenca: parseFloat(taxaPresenca),
-        taxaAceitacao: parseFloat(taxaAceitacao),
+        taxaPresenca: totalEscalas > 0 ? Math.round((presencas / totalEscalas) * 100) : 100,
+        score,
       },
-      timeline,
+      historicoEscalas: usuario.escalas.map(e => ({
+        escalaId: e.escala.id,
+        loja: e.escala.loja.nome,
+        cidade: e.escala.loja.cidade,
+        data: e.escala.data,
+        horario: e.escala.horario,
+        cargo: e.cargo,
+        status: e.status,
+        confirmou: e.confirmou,
+        chegou: e.chegou,
+        historicoStatus: e.historicoStatus ? JSON.parse(e.historicoStatus) : [],
+      })),
     });
   } catch (err) {
-    console.error('GET /api/historico/colaborador/:idOrMatricula:', err);
-    res.status(500).json({ erro: 'Erro ao carregar histórico do colaborador', detalhe: err.message });
+    console.error('GET /api/historico/colaborador:', err);
+    res.status(500).json({ erro: 'Erro ao gerar dossiê do colaborador', detalhe: err.message });
   }
 });
 
-// GET /api/historico/indicadores (Métricas consolidadas de qualquer período histórico)
+// GET /api/historico/indicadores (Métricas consolidadas do histórico do usuário)
 router.get('/indicadores', async (req, res) => {
   try {
-    const { periodo = 'ano_2026', dataInicio, dataFim, cidade, estado } = req.query;
+    const { periodo = '30dias', dataInicio, dataFim } = req.query;
     const dateWhere = buildDateRange(periodo, dataInicio, dataFim);
 
-    const where = {};
+    const where = {
+      usuarioSistemaId: req.userSistema.id,
+    };
     if (dateWhere) where.data = dateWhere;
-    if (cidade && cidade !== 'todas') {
-      where.loja = { cidade: { contains: cidade, mode: 'insensitive' } };
-    }
-    if (estado) {
-      where.loja = { ...where.loja, estado: estado.toUpperCase() };
-    }
 
     const escalas = await prisma.escala.findMany({
       where,
-      include: { membros: true, loja: true },
+      include: { membros: true },
     });
 
-    let pivTotal = 0;
-    let confirmados = 0;
-    let presencas = 0;
-    let faltas = 0;
-    let atrasos = 0;
-    let recusas = 0;
-    let cancelamentos = 0;
-    let convitesTotais = 0;
+    let totalOperacoes = escalas.length;
+    let totalPiv = 0;
+    let totalPresentes = 0;
+    let totalFaltas = 0;
+    let totalAtrasos = 0;
 
-    for (const esc of escalas) {
-      pivTotal += esc.pivNecessario || esc.membros.length;
-
-      for (const m of esc.membros) {
-        convitesTotais++;
-        if (m.confirmou) confirmados++;
-        if (m.status === 'EM_LOJA' || m.chegou) presencas++;
-        if (m.status === 'FALTOU') faltas++;
-        if (m.status === 'ATRASADO') atrasos++;
-        if (m.status === 'RECUSADO') recusas++;
-        if (m.status === 'CANCELADO') cancelamentos++;
+    for (const e of escalas) {
+      totalPiv += e.pivNecessario || e.membros.length;
+      for (const m of e.membros) {
+        if (m.status === 'EM_LOJA' || m.chegou) totalPresentes++;
+        if (m.status === 'FALTOU') totalFaltas++;
+        if (m.status === 'ATRASADO') totalAtrasos++;
       }
     }
 
-    const taxaPresenca = confirmados > 0 ? ((presencas / confirmados) * 100).toFixed(1) : 0;
-    const taxaAceitacao = convitesTotais > 0 ? ((confirmados / convitesTotais) * 100).toFixed(1) : 0;
-    const taxaFalta = confirmados > 0 ? ((faltas / confirmados) * 100).toFixed(1) : 0;
-    const taxaAtraso = presencas > 0 ? ((atrasos / presencas) * 100).toFixed(1) : 0;
-
     res.json({
       periodo,
-      totalEscalas: escalas.length,
-      pivTotal,
-      confirmados,
-      presencas,
-      faltas,
-      atrasos,
-      recusas,
-      cancelamentos,
-      convitesTotais,
-      taxaPresenca: parseFloat(taxaPresenca),
-      taxaAceitacao: parseFloat(taxaAceitacao),
-      taxaFalta: parseFloat(taxaFalta),
-      taxaAtraso: parseFloat(taxaAtraso),
+      totalOperacoes,
+      totalPiv,
+      totalPresentes,
+      totalFaltas,
+      totalAtrasos,
+      taxaPresencaMedia: totalPiv > 0 ? parseFloat(((totalPresentes / totalPiv) * 100).toFixed(1)) : 100,
     });
   } catch (err) {
     console.error('GET /api/historico/indicadores:', err);
-    res.status(500).json({ erro: 'Erro ao calcular indicadores históricos', detalhe: err.message });
+    res.status(500).json({ erro: 'Erro ao calcular indicadores do histórico', detalhe: err.message });
   }
 });
 

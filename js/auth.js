@@ -243,15 +243,10 @@ const AuthModule = (() => {
     } else {
       if (nameEl) nameEl.textContent = 'Usuário';
       if (dropdownNameEl) dropdownNameEl.textContent = 'Usuário';
-      // Ao fazer logout, resetar avatar para neutro
+      // Ao fazer logout, resetar avatar para rebuss.png
       if (headerAvatarWrapper) {
         headerAvatarWrapper.innerHTML = `
-          <div class="header-user-avatar-neutral">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-              <circle cx="12" cy="7" r="4"></circle>
-            </svg>
-          </div>
+          <img src="assets/rebuss.png" alt="Avatar Padrão" class="header-user-avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
         `;
       }
     }
@@ -357,9 +352,15 @@ const AuthModule = (() => {
     init();
   }
 
+  function setCurrentUser(user) {
+    currentUser = user;
+    updateHeaderUserUI();
+  }
+
   return {
     init,
     getCurrentUser,
+    setCurrentUser,
     isAuthenticated,
     isAdmin,
     isGestorOrAdmin,

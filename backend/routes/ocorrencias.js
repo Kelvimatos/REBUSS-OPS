@@ -1,18 +1,19 @@
 /**
  * REBUSS OPS — Rota: Ocorrências
- * GET    /api/ocorrencias
- * POST   /api/ocorrencias
- * DELETE /api/ocorrencias/:id
+ * Isolamento Multi-Usuário (Multi-Tenant)
  */
 
 import { Router } from 'express';
 import prisma from '../lib/prisma.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = Router();
 
+router.use(authenticateToken);
+
 const TIPOS_VALIDOS = ['FALTA', 'ATRASO', 'CANCELAMENTO', 'RECUSA', 'OUTROS'];
 
-// GET /api/ocorrencias
+// GET /api/ocorrencias (Apenas ocorrências das escalas do usuário logado)
 router.get('/', async (req, res) => {
   try {
     const { escalaId, usuarioId, tipo } = req.query;
@@ -20,6 +21,14 @@ router.get('/', async (req, res) => {
     if (escalaId) where.escalaId = escalaId;
     if (usuarioId) where.usuarioId = usuarioId;
     if (tipo) where.tipo = tipo.toUpperCase();
+
+    // Garantir que a escalaId pertença ao usuário se especificada, ou buscar apenas de escalas do usuário
+    if (escalaId) {
+      const escala = await prisma.escala.findFirst({
+        where: { id: escalaId, usuarioSistemaId: req.userSistema.id },
+      });
+      if (!escala) return res.json([]);
+    }
 
     const ocorrencias = await prisma.ocorrencia.findMany({
       where,
@@ -39,6 +48,13 @@ router.post('/', async (req, res) => {
     if (!escalaId) return res.status(400).json({ erro: 'Campo obrigatório: escalaId' });
     if (!usuarioId) return res.status(400).json({ erro: 'Campo obrigatório: usuarioId' });
     if (!tipo) return res.status(400).json({ erro: 'Campo obrigatório: tipo' });
+
+    const escala = await prisma.escala.findFirst({
+      where: { id: escalaId, usuarioSistemaId: req.userSistema.id },
+    });
+    if (!escala) {
+      return res.status(404).json({ erro: 'Operação não encontrada ou não pertence ao seu usuário' });
+    }
 
     const tipoUp = tipo.toUpperCase();
     if (!TIPOS_VALIDOS.includes(tipoUp)) {
@@ -63,10 +79,21 @@ router.post('/', async (req, res) => {
 // DELETE /api/ocorrencias/:id
 router.delete('/:id', async (req, res) => {
   try {
+    const ocorrencia = await prisma.ocorrencia.findUnique({
+      where: { id: req.params.id },
+    });
+    if (!ocorrencia) return res.status(404).json({ erro: 'Ocorrência não encontrada' });
+
+    const escala = await prisma.escala.findFirst({
+      where: { id: ocorrencia.escalaId, usuarioSistemaId: req.userSistema.id },
+    });
+    if (!escala) {
+      return res.status(403).json({ erro: 'Você não tem permissão para excluir esta ocorrência' });
+    }
+
     await prisma.ocorrencia.delete({ where: { id: req.params.id } });
     res.json({ mensagem: 'Ocorrência excluída com sucesso' });
   } catch (err) {
-    if (err.code === 'P2025') return res.status(404).json({ erro: 'Ocorrência não encontrada' });
     console.error('DELETE /api/ocorrencias/:id:', err);
     res.status(500).json({ erro: 'Erro ao excluir ocorrência', detalhe: err.message });
   }

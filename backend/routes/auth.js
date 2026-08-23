@@ -72,6 +72,7 @@ router.post('/register', async (req, res) => {
         telefone: true,
         cidade: true,
         estado: true,
+        fotoPerfil: true,
         createdAt: true,
       },
     });
@@ -143,6 +144,7 @@ router.post('/login', async (req, res) => {
         telefone: usuario.telefone,
         cidade: usuario.cidade,
         estado: usuario.estado,
+        fotoPerfil: usuario.fotoPerfil || null,
         createdAt: usuario.createdAt,
       },
     });
@@ -155,6 +157,64 @@ router.post('/login', async (req, res) => {
 // GET /api/auth/me (Dados do usuário logado)
 router.get('/me', authenticateToken, (req, res) => {
   res.json({ usuario: req.userSistema });
+});
+
+// PUT /api/auth/foto (Salva a foto de perfil do usuário logado no banco de dados)
+router.put('/foto', authenticateToken, async (req, res) => {
+  try {
+    const { foto } = req.body;
+
+    if (!foto || typeof foto !== 'string') {
+      return res.status(400).json({ erro: 'Conteúdo da imagem não fornecido ou inválido.' });
+    }
+
+    const usuarioAtualizado = await prisma.usuarioSistema.update({
+      where: { id: req.userSistema.id },
+      data: { fotoPerfil: foto },
+      select: {
+        id: true,
+        nome: true,
+        email: true,
+        perfil: true,
+        ativo: true,
+        fotoPerfil: true,
+      },
+    });
+
+    res.json({
+      mensagem: 'Foto de perfil salva com sucesso!',
+      usuario: usuarioAtualizado,
+    });
+  } catch (err) {
+    console.error('PUT /api/auth/foto:', err);
+    res.status(500).json({ erro: 'Erro ao salvar foto de perfil', detalhe: err.message });
+  }
+});
+
+// DELETE /api/auth/foto (Remove a foto de perfil do usuário logado no banco de dados)
+router.delete('/foto', authenticateToken, async (req, res) => {
+  try {
+    const usuarioAtualizado = await prisma.usuarioSistema.update({
+      where: { id: req.userSistema.id },
+      data: { fotoPerfil: null },
+      select: {
+        id: true,
+        nome: true,
+        email: true,
+        perfil: true,
+        ativo: true,
+        fotoPerfil: true,
+      },
+    });
+
+    res.json({
+      mensagem: 'Foto de perfil removida com sucesso!',
+      usuario: usuarioAtualizado,
+    });
+  } catch (err) {
+    console.error('DELETE /api/auth/foto:', err);
+    res.status(500).json({ erro: 'Erro ao remover foto de perfil', detalhe: err.message });
+  }
 });
 
 // POST /api/auth/logout

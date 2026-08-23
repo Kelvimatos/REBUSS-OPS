@@ -31,6 +31,7 @@ export async function authenticateToken(req, res, next) {
         telefone: true,
         cidade: true,
         estado: true,
+        fotoPerfil: true,
       },
     });
 

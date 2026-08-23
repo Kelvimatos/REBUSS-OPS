@@ -1,28 +1,26 @@
 /**
  * REBUSS OPS — Rota: Escalas + Controle de Presença
- * GET    /api/escalas
- * GET    /api/escalas/:id
- * POST   /api/escalas
- * PUT    /api/escalas/:id
- * DELETE /api/escalas/:id
- * POST   /api/escalas/:id/membros
- * PUT    /api/escalas/:escalaId/membros/:usuarioId
- * DELETE /api/escalas/:escalaId/membros/:usuarioId
+ * Isolamento Multi-Usuário (Multi-Tenant)
  */
 
 import { Router } from 'express';
 import prisma from '../lib/prisma.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = Router();
 
+router.use(authenticateToken);
+
 const STATUS_VALIDOS = ['PENDENTE', 'CONFIRMADO', 'RECUSADO', 'A_CAMINHO', 'EM_LOJA', 'ATRASADO', 'FALTOU', 'CANCELADO'];
-const STATUS_ESCALA_VALIDOS = ['ABERTA', 'EM_ANDAMENTO', 'CONCLUIDA', 'CANCELADA'];
+const STATUS_ESCALA_VALIDOS = ['ABERTA', 'EM_ANDAMENTO', 'CONCLUIDA', 'FINALIZADA', 'CANCELADA'];
 
 // GET /api/escalas
 router.get('/', async (req, res) => {
   try {
     const { data, lojaId, status } = req.query;
-    const where = {};
+    const where = {
+      usuarioSistemaId: req.userSistema.id,
+    };
 
     if (lojaId) where.lojaId = lojaId;
     if (status) where.status = status.toUpperCase();
@@ -55,8 +53,11 @@ router.get('/', async (req, res) => {
 // GET /api/escalas/:id
 router.get('/:id', async (req, res) => {
   try {
-    const escala = await prisma.escala.findUnique({
-      where: { id: req.params.id },
+    const escala = await prisma.escala.findFirst({
+      where: {
+        id: req.params.id,
+        usuarioSistemaId: req.userSistema.id,
+      },
       include: {
         loja: true,
         membros: {
@@ -65,7 +66,7 @@ router.get('/:id', async (req, res) => {
         },
       },
     });
-    if (!escala) return res.status(404).json({ erro: 'Escala não encontrada' });
+    if (!escala) return res.status(404).json({ erro: 'Escala não encontrada ou não pertence ao seu usuário' });
     res.json(escala);
   } catch (err) {
     console.error('GET /api/escalas/:id:', err);
@@ -81,14 +82,25 @@ router.post('/', async (req, res) => {
     if (!data) return res.status(400).json({ erro: 'Campo obrigatório: data' });
     if (!horario) return res.status(400).json({ erro: 'Campo obrigatório: horario' });
 
+    // Verificar se a loja pertence ao usuário
+    const loja = await prisma.loja.findFirst({
+      where: { id: lojaId, usuarioSistemaId: req.userSistema.id },
+    });
+
+    if (!loja) {
+      return res.status(404).json({ erro: 'Loja não encontrada ou não pertence ao seu usuário' });
+    }
+
     const escala = await prisma.escala.create({
       data: {
+        usuarioSistemaId: req.userSistema.id,
         lojaId,
         data: new Date(data),
         horario: horario.trim(),
         pivNecessario: pivNecessario ? parseInt(pivNecessario) : null,
         observacoes: observacoes?.trim() || null,
         status: status?.toUpperCase() || 'ABERTA',
+        importadoPor: req.userSistema.nome,
         membros: membros && membros.length > 0
           ? {
               create: membros.map(uid => ({
@@ -114,6 +126,14 @@ router.post('/', async (req, res) => {
 // PUT /api/escalas/:id
 router.put('/:id', async (req, res) => {
   try {
+    const escalaExistente = await prisma.escala.findFirst({
+      where: { id: req.params.id, usuarioSistemaId: req.userSistema.id },
+    });
+
+    if (!escalaExistente) {
+      return res.status(404).json({ erro: 'Escala não encontrada ou não pertence ao seu usuário' });
+    }
+
     const { lojaId, data, horario, pivNecessario, observacoes, status } = req.body;
     const dadosUpdate = {};
     if (lojaId !== undefined) dadosUpdate.lojaId = lojaId;
@@ -136,7 +156,6 @@ router.put('/:id', async (req, res) => {
     });
     res.json(escala);
   } catch (err) {
-    if (err.code === 'P2025') return res.status(404).json({ erro: 'Escala não encontrada' });
     console.error('PUT /api/escalas/:id:', err);
     res.status(500).json({ erro: 'Erro ao atualizar escala', detalhe: err.message });
   }
@@ -145,18 +164,33 @@ router.put('/:id', async (req, res) => {
 // DELETE /api/escalas/:id
 router.delete('/:id', async (req, res) => {
   try {
+    const escalaExistente = await prisma.escala.findFirst({
+      where: { id: req.params.id, usuarioSistemaId: req.userSistema.id },
+    });
+
+    if (!escalaExistente) {
+      return res.status(404).json({ erro: 'Escala não encontrada ou não pertence ao seu usuário' });
+    }
+
     await prisma.escala.delete({ where: { id: req.params.id } });
     res.json({ mensagem: 'Escala excluída com sucesso' });
   } catch (err) {
-    if (err.code === 'P2025') return res.status(404).json({ erro: 'Escala não encontrada' });
     console.error('DELETE /api/escalas/:id:', err);
     res.status(500).json({ erro: 'Erro ao excluir escala', detalhe: err.message });
   }
 });
 
-// POST /api/escalas/:id/membros — adicionar funcionário à escala
+// POST /api/escalas/:id/membros
 router.post('/:id/membros', async (req, res) => {
   try {
+    const escalaExistente = await prisma.escala.findFirst({
+      where: { id: req.params.id, usuarioSistemaId: req.userSistema.id },
+    });
+
+    if (!escalaExistente) {
+      return res.status(404).json({ erro: 'Escala não encontrada ou não pertence ao seu usuário' });
+    }
+
     const { usuarioId } = req.body;
     if (!usuarioId) return res.status(400).json({ erro: 'Campo obrigatório: usuarioId' });
 
@@ -167,15 +201,22 @@ router.post('/:id/membros', async (req, res) => {
     res.status(201).json(membro);
   } catch (err) {
     if (err.code === 'P2002') return res.status(409).json({ erro: 'Usuário já está nesta escala' });
-    if (err.code === 'P2003') return res.status(404).json({ erro: 'Escala ou usuário não encontrado' });
     console.error('POST /api/escalas/:id/membros:', err);
     res.status(500).json({ erro: 'Erro ao adicionar membro', detalhe: err.message });
   }
 });
 
-// PUT /api/escalas/:escalaId/membros/:usuarioId — controle de presença
+// PUT /api/escalas/:escalaId/membros/:usuarioId
 router.put('/:escalaId/membros/:usuarioId', async (req, res) => {
   try {
+    const escalaExistente = await prisma.escala.findFirst({
+      where: { id: req.params.escalaId, usuarioSistemaId: req.userSistema.id },
+    });
+
+    if (!escalaExistente) {
+      return res.status(404).json({ erro: 'Escala não encontrada ou não pertence ao seu usuário' });
+    }
+
     const { status, confirmou, horarioConfirmacao, chegou, horarioChegada } = req.body;
     const data = {};
 
@@ -186,7 +227,6 @@ router.put('/:escalaId/membros/:usuarioId', async (req, res) => {
       }
       data.status = s;
 
-      // Auto-definir flags baseado no status
       if (s === 'CONFIRMADO') data.confirmou = true;
       if (s === 'EM_LOJA') { data.chegou = true; data.confirmou = true; }
       if (s === 'PENDENTE') { data.confirmou = false; data.chegou = false; }
@@ -217,6 +257,14 @@ router.put('/:escalaId/membros/:usuarioId', async (req, res) => {
 // DELETE /api/escalas/:escalaId/membros/:usuarioId
 router.delete('/:escalaId/membros/:usuarioId', async (req, res) => {
   try {
+    const escalaExistente = await prisma.escala.findFirst({
+      where: { id: req.params.escalaId, usuarioSistemaId: req.userSistema.id },
+    });
+
+    if (!escalaExistente) {
+      return res.status(404).json({ erro: 'Escala não encontrada ou não pertence ao seu usuário' });
+    }
+
     await prisma.escalaMembro.deleteMany({
       where: { escalaId: req.params.escalaId, usuarioId: req.params.usuarioId },
     });

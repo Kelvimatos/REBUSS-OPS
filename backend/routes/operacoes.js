@@ -1,12 +1,16 @@
 /**
  * REBUSS OPS — Rotas de Gestão Operacional em Tempo Real
- * Controle Diário de Operações: Criar -> Importar Equipe -> Acompanhar Status -> Finalizar -> Histórico -> Dashboard
+ * Isolamento Multi-Usuário (Multi-Tenant por Usuário do Sistema)
  */
 
 import { Router } from 'express';
 import prisma from '../lib/prisma.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = Router();
+
+// Todas as rotas de operações exigem autenticação obrigatória
+router.use(authenticateToken);
 
 const STATUS_VALIDOS = [
   'PENDENTE',
@@ -21,31 +25,21 @@ const STATUS_VALIDOS = [
 
 /**
  * Limpa e normaliza o nome do colaborador, garantindo que contenha SOMENTE o nome.
- * Nunca junta matrícula, telefone, cidade, status, PH, I, código.
  */
 function cleanPersonName(rawText) {
   if (!rawText) return '';
   let text = rawText;
 
-  // 1. Se veio no formato [104136 - Leandro Tameirao Pereira](URL), extrair apenas o texto interno
   const mdLinkMatch = text.match(/\[(.*?)\](?:\(.*?\))?/);
   if (mdLinkMatch) {
     text = mdLinkMatch[1];
   }
 
-  // 2. Remover códigos no início (ex: "104136 - ", "100654 – ")
   text = text.replace(/^\s*\d{3,8}\s*[-–—:]\s*/, '');
-
-  // 3. Remover numeração de lista no início (ex: "1.", "1 -", "01.")
   text = text.replace(/^\s*\d+[\.\)\-]?\s*/, '');
-
-  // 4. Remover parênteses e seus conteúdos (ex: (PH: 1.410, I: 73), (SP), (MG), (31) 9999-9999)
   text = text.replace(/\([^)]*\)/g, ' ');
-
-  // 5. Remover URLs residuais
   text = text.replace(/https?:\/\/\S+/gi, ' ');
 
-  // 6. Remover status operacionais residuais
   const statusPatterns = [
     /\b(No\s+confirmado|Não\s+confirmado|Nao\s+confirmado|Confirmado|Confirmada|Pendente|Presente|Faltou|Falta|Recusou|Recusado|Em\s+Loja|A\s+Caminho|Atrasado|Atrasada|Desistência|Substituído|Substituido|Cancelado)\b/gi,
   ];
@@ -53,7 +47,6 @@ function cleanPersonName(rawText) {
     text = text.replace(sp, ' ');
   }
 
-  // 7. Remover cargos conhecidos
   const cargoKeywords = [
     'SUPERVISOR GENERAL', 'SUPERVISOR GERAL', 'SUPERVISOR', 'SUPERVISORA',
     'CHEFE DE GRUPO', 'OP. SISTEMA', 'OPERADOR DE SISTEMA',
@@ -64,7 +57,6 @@ function cleanPersonName(rawText) {
     text = text.replace(new RegExp(`\\b${ck}\\b`, 'gi'), ' ');
   }
 
-  // 8. Remover cidades conhecidas e siglas de estados
   const citiesAndStates = [
     'Rio de Janeiro', 'São Paulo', 'Belo Horizonte', 'Juiz de Fora',
     'Curitiba', 'Brasília', 'Brasilia', 'Goiânia', 'Goiania',
@@ -74,22 +66,16 @@ function cleanPersonName(rawText) {
     text = text.replace(new RegExp(`\\b${cs}\\b`, 'gi'), ' ');
   }
   text = text.replace(/\b(RJ|SP|MG|DF|GO|PR|BA|CE|PE|RS|SC|ES)\b/gi, ' ');
-
-  // 9. Remover telefones e números isolados
   text = text.replace(/\b\d{2}\s*9?\d{4,5}\s*[-.]?\s*\d{4}\b/g, ' ');
   text = text.replace(/\b\d{4,12}\b/g, ' ');
-
-  // 10. Remover pontuações residuais
   text = text.replace(/[\*\-\—\–\:\;\,\/\\\|\#\_\•\[\]\(\)]/g, ' ');
-
-  // 11. Normalizar espaços em branco
   text = text.replace(/\s+/g, ' ').trim();
 
   return text;
 }
 
 /**
- * Parser de texto da equipe do Admin Rebuss / WhatsApp / Tabela
+ * Parser de texto da equipe
  */
 function parseEquipeText(rawText) {
   if (!rawText || !rawText.trim()) {
@@ -102,8 +88,6 @@ function parseEquipeText(rawText) {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-
-    // Ignorar linhas de cabeçalho de tabela Markdown (ex: "| Cargo | Nome | ... |")
     if (/^\|\s*Cargo\b/i.test(line) || /^\|\s*[-:\s|]+\s*$/i.test(line)) {
       continue;
     }
@@ -116,29 +100,22 @@ function parseEquipeText(rawText) {
     let telefone = '';
     let statusImportado = 'PENDENTE';
 
-    // CASO 1: Linha formatada com pipes (| Col1 | Col2 | Col3 ...)
     if (line.includes('|')) {
       const parts = line.split('|').map(p => p.trim()).filter(p => p !== '');
       if (parts.length >= 2) {
-        // Encontrar a parte que contém o cargo
         const cargoCand = parts[0];
         if (cargoCand && !cargoCand.startsWith('[')) {
           cargo = cargoCand.replace(/[*_]/g, '').trim() || 'Operador';
         }
 
-        // Encontrar a parte que contém o [Código - Nome](URL) ou Nome
         let personCand = parts.find(p => p.includes('[') || /\b\d{4,8}\s*[-–—]/.test(p)) || parts[1] || '';
-
-        // Extrair código
         const codeMatch = personCand.match(/(?:\[|\b)(\d{4,8})\s*[-–—]/) || line.match(/\[(\d{4,8})\s*[-–—]/);
         if (codeMatch) {
           codigo = codeMatch[1];
         }
 
-        // Extrair Nome limpo
         nome = cleanPersonName(personCand);
 
-        // Extrair Matrícula (procura nas outras colunas um número com 5 a 12 dígitos)
         for (let pIdx = 1; pIdx < parts.length; pIdx++) {
           const p = parts[pIdx];
           const matM = p.match(/^\b(\d{6,12})\b$/);
@@ -148,236 +125,111 @@ function parseEquipeText(rawText) {
           }
         }
 
-        // Extrair Telefone
-        for (const p of parts) {
-          const telM = p.match(/(?:\(?\d{2}\)?\s*)?9?\d{4,5}[-.\s]?\d{4}/);
-          if (telM && !matricula?.includes(telM[0])) {
-            telefone = telM[0].trim();
+        for (let pIdx = 1; pIdx < parts.length; pIdx++) {
+          const p = parts[pIdx];
+          const telM = p.match(/(?:\(?\d{2}\)?\s*)?9?\d{4}[-.\s]?\d{4}/);
+          if (telM) {
+            telefone = telM[0].replace(/\D/g, '');
             break;
           }
         }
 
-        // Extrair Cidade
-        for (const p of parts) {
-          if (/Belo Horizonte|São Paulo|Rio de Janeiro|Brasília|Goiânia|Juiz de Fora|Curitiba|Campinas/i.test(p)) {
-            cidade = p.replace(/[*_]/g, '').trim();
+        for (let pIdx = 1; pIdx < parts.length; pIdx++) {
+          const p = parts[pIdx];
+          const stMatch = p.match(/\b(Confirmado|Confirmada|Pendente|Presente|Faltou|Falta|Recusou|Recusado|Em\s+Loja|A\s+Caminho|Atrasado|Cancelado)\b/i);
+          if (stMatch) {
+            const stStr = stMatch[1].toUpperCase().replace(/\s+/g, '_');
+            if (stStr === 'PRESENTE') statusImportado = 'EM_LOJA';
+            else if (stStr === 'FALTA') statusImportado = 'FALTOU';
+            else if (stStr === 'CONFIRMADA') statusImportado = 'CONFIRMADO';
+            else if (STATUS_VALIDOS.includes(stStr)) statusImportado = stStr;
             break;
           }
         }
-
-        // Extrair Status
-        const lastPart = parts[parts.length - 1];
-        if (/No\s+confirmado|Não\s+confirmado|Nao\s+confirmado/i.test(line)) {
-          statusImportado = 'PENDENTE';
-        } else if (/Confirmad[oa]|Presente|Em\s+Loja/i.test(lastPart) || /Confirmad[oa]/i.test(line)) {
-          statusImportado = 'CONFIRMADO';
-        }
       }
+    } else {
+      const codeMatch = line.match(/(?:\[|\b)(\d{4,8})\s*[-–—]/);
+      if (codeMatch) codigo = codeMatch[1];
+
+      const matM = line.match(/\b(\d{6,12})\b/);
+      if (matM && matM[1] !== codigo) matricula = matM[1];
+
+      const telM = line.match(/(?:\(?\d{2}\)?\s*)?9?\d{4}[-.\s]?\d{4}/);
+      if (telM) telefone = telM[0].replace(/\D/g, '');
+
+      const cargoMatch = line.match(/\b(Supervisor General|Supervisor Geral|Supervisor|Supervisora|Chefe de Grupo|Op\. Sistema|Operador de Sistema|Contador|Contadora|Operador|Operadora|Auxiliar|Escaneador|Escaneadora|Líder|Conferente)\b/i);
+      if (cargoMatch) cargo = cargoMatch[1];
+
+      nome = cleanPersonName(line);
     }
 
-    // CASO 2: Linha sem pipes (texto livre ou lista do WhatsApp/Admin)
-    if (!nome) {
-      // Procurar código e nome no padrão [104136 - Leandro Tameirao](...)
-      const matchBracket = line.match(/\[(\d{4,8})\s*[-–—:]\s*([^\]]+)\]/);
-      if (matchBracket) {
-        codigo = matchBracket[1];
-        nome = cleanPersonName(matchBracket[2]);
-      } else {
-        const matchCodeLine = line.match(/\b(\d{4,8})\s*[-–—:]\s*([A-Za-zÀ-ÖØ-öø-ÿ\s]{3,})/);
-        if (matchCodeLine) {
-          codigo = matchCodeLine[1];
-          nome = cleanPersonName(matchCodeLine[2]);
-        }
-      }
+    if (!nome || nome.length < 3) continue;
 
-      // Se ainda não achou nome, tenta limpar a linha toda
-      if (!nome) {
-        const cleaned = cleanPersonName(line);
-        if (cleaned.length >= 3 && !/^\d+$/.test(cleaned)) {
-          nome = cleaned;
-        }
-      }
+    const dedupKey = `${codigo || ''}_${nome.toLowerCase()}`;
+    if (processedKeys.has(dedupKey)) continue;
+    processedKeys.add(dedupKey);
 
-      // Matrícula
-      const matMatch = line.match(/\b(\d{6,12})\b/);
-      if (matMatch && matMatch[1] !== codigo) {
-        matricula = matMatch[1];
-      }
-
-      // Telefone
-      const telMatch = line.match(/(?:\(?\d{2}\)?\s*)?9?\d{4,5}[-.\s]?\d{4}/);
-      if (telMatch) {
-        telefone = telMatch[0];
-      }
-
-      // Cargo
-      const cargoKeywords = [
-        'SUPERVISOR GENERAL', 'SUPERVISOR GERAL', 'SUPERVISOR', 'SUPERVISORA',
-        'CHEFE DE GRUPO', 'OP. SISTEMA', 'OPERADOR DE SISTEMA',
-        'CONTADOR', 'CONTADORA', 'OPERADOR', 'OPERADORA', 'AUXILIAR',
-        'ESCANEADOR', 'ESCANEADORA', 'LÍDER', 'CONFERENTE', 'AUDITOR'
-      ];
-      for (const ck of cargoKeywords) {
-        if (new RegExp(`\\b${ck}\\b`, 'i').test(line)) {
-          cargo = ck.charAt(0).toUpperCase() + ck.slice(1).toLowerCase();
-          break;
-        }
-      }
-
-      // Status
-      if (/No\s+confirmado|Não\s+confirmado|Nao\s+confirmado/i.test(line)) {
-        statusImportado = 'PENDENTE';
-      } else if (/Confirmad[oa]|Presente|Em\s+Loja/i.test(line)) {
-        statusImportado = 'CONFIRMADO';
-      }
-    }
-
-    // Validação mínima para incluir o colaborador
-    if (nome && nome.length >= 2) {
-      const key = codigo || matricula || nome.toLowerCase();
-      if (!processedKeys.has(key)) {
-        processedKeys.add(key);
-        colaboradores.push({
-          codigo: codigo || null,
-          nome,
-          cargo: cargo || 'Operador',
-          matricula: matricula || null,
-          cidade: cidade || '',
-          telefone: telefone || '',
-          status: statusImportado,
-          confirmou: statusImportado === 'CONFIRMADO',
-        });
-      }
-    }
+    colaboradores.push({
+      codigo,
+      nome,
+      matricula,
+      cargo,
+      cidade,
+      telefone,
+      status: statusImportado,
+    });
   }
 
   return colaboradores;
 }
 
-function parseDataOperacao(dataInput) {
-  if (!dataInput) {
-    const d = new Date();
-    d.setUTCHours(12, 0, 0, 0);
-    return d;
-  }
-  if (dataInput instanceof Date && !isNaN(dataInput.getTime())) {
-    const d = new Date(dataInput);
-    d.setUTCHours(12, 0, 0, 0);
-    return d;
-  }
-  if (typeof dataInput === 'string') {
-    const trimmed = dataInput.trim();
-    // DD/MM/YYYY or DD-MM-YYYY
-    const brMatch = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-    if (brMatch) {
-      const day = parseInt(brMatch[1], 10);
-      const month = parseInt(brMatch[2], 10) - 1;
-      const year = parseInt(brMatch[3], 10);
-      return new Date(Date.UTC(year, month, day, 12, 0, 0));
-    }
-    // YYYY-MM-DD
-    const isoMatch = trimmed.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
-    if (isoMatch) {
-      const year = parseInt(isoMatch[1], 10);
-      const month = parseInt(isoMatch[2], 10) - 1;
-      const day = parseInt(isoMatch[3], 10);
-      return new Date(Date.UTC(year, month, day, 12, 0, 0));
-    }
-    const parsed = new Date(trimmed);
-    if (!isNaN(parsed.getTime())) {
-      parsed.setUTCHours(12, 0, 0, 0);
-      return parsed;
-    }
-  }
-  const d = new Date();
-  d.setUTCHours(12, 0, 0, 0);
-  return d;
-}
-
 /**
- * Parser inteligente de metadados completos de uma operação (Loja, Data, Horário, Cidade, PIV, Colaboradores)
+ * Parser de texto da operação completa
  */
 function parseOperacaoCompletaText(rawText) {
   if (!rawText || !rawText.trim()) {
-    throw new Error('Texto de importação vazio');
+    throw new Error('Texto da operação não fornecido');
   }
 
-  const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+  const lines = rawText.split('\n').map(l => l.trim());
+
   let lojaNome = '';
-  let dataOperacao = null;
-  let horario = '';
-  let cidade = '';
-  let estado = '';
-  let pivNecessario = 0;
+  let dataOperacao = new Date();
+  let horario = '18:30';
+  let cidade = 'São Paulo';
+  let estado = 'SP';
+  let pivNecessario = null;
 
-  for (const line of lines) {
-    // 1. Loja / Unidade
-    if (!lojaNome) {
-      const mLoja = line.match(/(?:loja|unidade|opera[çc][ãa]o|cliente)\s*[:\-–—]?\s*([^\n\r\|]+)/i);
-      if (mLoja && mLoja[1].trim()) {
-        lojaNome = mLoja[1].replace(/[*_#]/g, '').trim();
-      } else if (/^\s*\*?\s*(?:ESCALA|OPERAÇÃO)\s+([^\*]+)\*?/i.test(line)) {
-        const mTitle = line.match(/(?:ESCALA|OPERAÇÃO)\s+(?:DA\s+)?([^\*]+)/i);
-        if (mTitle) lojaNome = mTitle[1].replace(/[*_#]/g, '').trim();
-      }
+  for (let i = 0; i < Math.min(lines.length, 30); i++) {
+    const line = lines[i];
+
+    const lojaMatch = line.match(/(?:Loja|Unidade|Cliente|Local|Inventário\s+em)[:\s]+(.+)/i);
+    if (lojaMatch && !lojaNome) {
+      lojaNome = lojaMatch[1].replace(/[*_#]/g, '').trim();
     }
 
-    // 2. Data
-    if (!dataOperacao) {
-      const mData = line.match(/(?:data\s*[:\-–—]?\s*)?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/i);
-      if (mData) {
-        dataOperacao = parseDataOperacao(mData[1]);
-      }
+    const dataMatch = line.match(/(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{2,4})/);
+    if (dataMatch) {
+      const dia = parseInt(dataMatch[1], 10);
+      const mes = parseInt(dataMatch[2], 10) - 1;
+      let ano = parseInt(dataMatch[3], 10);
+      if (ano < 100) ano += 2000;
+      dataOperacao = new Date(Date.UTC(ano, mes, dia, 12, 0, 0));
     }
 
-    // 3. Horário
-    if (!horario) {
-      const mHorario = line.match(/(?:hor[áa]rio|in[íi]cio|hora)\s*[:\-–—]?\s*(\d{1,2}[:hH]\d{2})/i) ||
-                        line.match(/\b(\d{1,2}[:hH]\d{2})\b/);
-      if (mHorario) {
-        horario = mHorario[1].replace(/[hH]/, ':');
-        if (/^\d:/.test(horario)) horario = '0' + horario;
-      }
+    const horaMatch = line.match(/\b([01]?\d|2[0-3])[:hH]([0-5]\d)\b/);
+    if (horaMatch) {
+      horario = `${horaMatch[1].padStart(2, '0')}:${horaMatch[2]}`;
     }
 
-    // 4. Cidade / Estado
-    if (!cidade) {
-      const mLocal = line.match(/(?:cidade|local|munic[íi]pio)\s*[:\-–—]?\s*([^\n\r\/\|\-]+)(?:[\/\-]\s*([A-Za-z]{2}))?/i);
-      if (mLocal) {
-        cidade = mLocal[1].replace(/[*_#]/g, '').trim();
-        if (mLocal[2]) estado = mLocal[2].toUpperCase().trim();
-      } else {
-        const mCityKnown = line.match(/\b(Belo Horizonte|São Paulo|Rio de Janeiro|Juiz de Fora|Curitiba|Brasília|Brasilia|Goiânia|Goiania|Campinas|Niterói|Niteroi|Salvador|Fortaleza|Recife)\b/i);
-        if (mCityKnown) {
-          cidade = mCityKnown[1];
-        }
-      }
-    }
-
-    // 5. PIV
-    const mPiv = line.match(/(?:piv|meta|meta piv|piv necess[áa]rio)\s*[:\-–—]?\s*(\d+)/i);
-    if (mPiv) {
-      pivNecessario = parseInt(mPiv[1], 10);
+    const pivMatch = line.match(/(?:PIV|Meta|Necessário|Meta\s+PIV|Qtd)[:\s]+(\d{1,3})/i);
+    if (pivMatch) {
+      pivNecessario = parseInt(pivMatch[1], 10);
     }
   }
-
-  // Fallbacks
-  if (!lojaNome) {
-    const firstStoreLine = lines.find(l => !l.startsWith('|') && !/^(data|hor|cid|colab|cargo|#|\*|status)/i.test(l) && l.length < 60);
-    lojaNome = firstStoreLine ? firstStoreLine.replace(/[*_#]/g, '').trim() : 'Loja Operacional';
-  }
-
-  if (!dataOperacao) {
-    dataOperacao = new Date();
-    dataOperacao.setUTCHours(12, 0, 0, 0);
-  }
-
-  if (!horario) horario = '18:30';
-  if (!cidade) cidade = 'Belo Horizonte';
-  if (!estado) estado = 'MG';
 
   const colaboradores = parseEquipeText(rawText);
-  if (pivNecessario <= 1 && colaboradores.length > 0) {
+  if (!pivNecessario) {
     pivNecessario = Math.max(colaboradores.length, 5);
   }
 
@@ -387,16 +239,28 @@ function parseOperacaoCompletaText(rawText) {
     horario,
     cidade,
     estado,
-    pivNecessario: pivNecessario || 5,
+    pivNecessario,
     colaboradores,
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ENDPOINTS
-// ─────────────────────────────────────────────────────────────────────────────
+function parseDataOperacao(dataStr) {
+  if (!dataStr) return new Date();
+  if (dataStr instanceof Date) return dataStr;
 
-// POST /api/operacoes/analisar (Pré-visualização da operação e equipe)
+  const brMatch = dataStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (brMatch) {
+    const d = parseInt(brMatch[1], 10);
+    const m = parseInt(brMatch[2], 10) - 1;
+    const y = parseInt(brMatch[3], 10);
+    return new Date(Date.UTC(y, m, d, 12, 0, 0));
+  }
+
+  const dt = new Date(dataStr);
+  return isNaN(dt.getTime()) ? new Date() : dt;
+}
+
+// POST /api/operacoes/analisar (Analisa texto e verifica se já existe para este usuário)
 router.post('/analisar', async (req, res) => {
   try {
     const { texto } = req.body;
@@ -406,7 +270,6 @@ router.post('/analisar', async (req, res) => {
 
     const analise = parseOperacaoCompletaText(texto);
 
-    // Verificar se já existe operação para esta loja nesta data
     let jaExiste = false;
     let escalaExistente = null;
 
@@ -419,7 +282,11 @@ router.post('/analisar', async (req, res) => {
 
       escalaExistente = await prisma.escala.findFirst({
         where: {
-          loja: { nome: { contains: analise.lojaNome.trim(), mode: 'insensitive' } },
+          usuarioSistemaId: req.userSistema.id,
+          loja: {
+            nome: { contains: analise.lojaNome.trim(), mode: 'insensitive' },
+            usuarioSistemaId: req.userSistema.id,
+          },
           data: { gte: start, lte: end },
         },
         include: { loja: true },
@@ -452,7 +319,7 @@ router.post('/analisar', async (req, res) => {
   }
 });
 
-// POST /api/operacoes/importar (Grava ou atualiza a operação completa a partir do Importador)
+// POST /api/operacoes/importar (Grava operação vinculada ao usuário autenticado)
 router.post('/importar', async (req, res) => {
   try {
     const {
@@ -465,7 +332,6 @@ router.post('/importar', async (req, res) => {
       endereco,
       pivNecessario,
       colaboradores = [],
-      usuarioResponsavel,
     } = req.body;
 
     if (!lojaNome) {
@@ -478,17 +344,21 @@ router.post('/importar', async (req, res) => {
     const end = new Date(dt);
     end.setUTCHours(23, 59, 59, 999);
 
-    // 1. Localizar ou Criar Loja
+    // 1. Localizar ou Criar Loja do usuário
     let loja = await prisma.loja.findFirst({
-      where: { nome: { contains: lojaNome.trim(), mode: 'insensitive' } },
+      where: {
+        usuarioSistemaId: req.userSistema.id,
+        nome: { contains: lojaNome.trim(), mode: 'insensitive' },
+      },
     });
 
     if (!loja) {
       loja = await prisma.loja.create({
         data: {
+          usuarioSistemaId: req.userSistema.id,
           nome: lojaNome.trim(),
-          cidade: cidade?.trim() || 'Belo Horizonte',
-          estado: estado?.trim().toUpperCase() || 'MG',
+          cidade: cidade?.trim() || 'São Paulo',
+          estado: estado?.trim().toUpperCase() || 'SP',
           endereco: endereco?.trim() || null,
         },
       });
@@ -499,9 +369,10 @@ router.post('/importar', async (req, res) => {
       });
     }
 
-    // 2. Verificar se já existe a escala desta loja nesta data
+    // 2. Verificar se já existe a escala desta loja nesta data para o usuário
     let escala = await prisma.escala.findFirst({
       where: {
+        usuarioSistemaId: req.userSistema.id,
         lojaId: loja.id,
         data: { gte: start, lte: end },
       },
@@ -515,12 +386,13 @@ router.post('/importar', async (req, res) => {
       isNova = true;
       escala = await prisma.escala.create({
         data: {
+          usuarioSistemaId: req.userSistema.id,
           lojaId: loja.id,
           data: dt,
           horario: (horario || '18:30').trim(),
           pivNecessario: piv,
           status: 'ABERTA',
-          importadoPor: usuarioResponsavel || 'Kelvi Matos',
+          importadoPor: req.userSistema.nome,
           importadoEm: new Date(),
           statusLogs: {
             create: {
@@ -570,27 +442,13 @@ router.post('/importar', async (req, res) => {
             codigo: colab.codigo || null,
             matricula: colab.matricula || null,
             telefone: colab.telefone || null,
-            cidade: colab.cidade || loja.cidade || 'Belo Horizonte',
-            estado: loja.estado || 'MG',
+            cidade: colab.cidade || loja.cidade || 'São Paulo',
+            estado: loja.estado || 'SP',
           },
         });
         novosCadastrados++;
-      } else {
-        const updateData = {};
-        if (colab.codigo && !user.codigo) updateData.codigo = colab.codigo;
-        if (colab.matricula && !user.matricula) updateData.matricula = colab.matricula;
-        if (colab.telefone && !user.telefone) updateData.telefone = colab.telefone;
-        if (colab.cidade && !user.cidade) updateData.cidade = colab.cidade;
-
-        if (Object.keys(updateData).length > 0) {
-          await prisma.usuario.update({
-            where: { id: user.id },
-            data: updateData,
-          });
-        }
       }
 
-      // Vincular na escala
       const statusInicial = colab.status || 'PENDENTE';
       const initialHistory = JSON.stringify([
         { status: statusInicial, horario: new Date().toISOString() }
@@ -626,16 +484,18 @@ router.post('/importar', async (req, res) => {
       }
     }
 
-    // 4. Gravar log de importação
+    // 4. Gravar log de importação vinculado ao usuário
     try {
       await prisma.importacaoLog.create({
         data: {
-          usuarioNome: usuarioResponsavel || 'Kelvi Matos',
+          usuarioSistemaId: req.userSistema.id,
+          usuarioNome: req.userSistema.nome,
           lojaNome: loja.nome,
           dataOperacao: dt,
           horarioOperacao: horario || '18:30',
           totalProcessados: colaboradores.length,
           totalNovos: novosCadastrados,
+          escalaId: escala.id,
         },
       });
     } catch (e) {
@@ -645,7 +505,7 @@ router.post('/importar', async (req, res) => {
     res.json({
       sucesso: true,
       mensagem: isNova
-        ? `Operação ${loja.nome} criada e salva no PostgreSQL!`
+        ? `Operação ${loja.nome} criada com sucesso!`
         : `Operação ${loja.nome} atualizada com sucesso!`,
       operacaoId: escala.id,
       totalProcessados: colaboradores.length,
@@ -659,8 +519,8 @@ router.post('/importar', async (req, res) => {
   }
 });
 
-// Função utilitária para listar e formatar operações com filtros
-async function listarOperacoesComFiltro(query) {
+// Listar operações com filtros isolados por usuário
+async function listarOperacoesComFiltro(query, usuarioSistemaId) {
   const { periodo = 'hoje', data, loja, cidade, estado, status, limit = 100, page = 1 } = query;
 
   const now = new Date();
@@ -674,9 +534,10 @@ async function listarOperacoesComFiltro(query) {
   const tomorrowEnd = new Date(todayEnd);
   tomorrowEnd.setUTCDate(tomorrowEnd.getUTCDate() + 1);
 
-  const where = {};
+  const where = {
+    usuarioSistemaId,
+  };
 
-  // Filtro de Período / Data
   if (data) {
     const customDate = new Date(data);
     const start = new Date(customDate);
@@ -693,11 +554,8 @@ async function listarOperacoesComFiltro(query) {
     where.status = { not: 'FINALIZADA' };
   } else if (periodo === 'finalizadas') {
     where.status = 'FINALIZADA';
-  } else if (periodo === 'todas') {
-    // Sem restrição de data primária
   }
 
-  // Filtro de Loja
   if (loja && loja.trim()) {
     where.loja = {
       ...where.loja,
@@ -705,7 +563,6 @@ async function listarOperacoesComFiltro(query) {
     };
   }
 
-  // Filtro de Cidade
   if (cidade && cidade !== 'todas' && cidade.trim()) {
     where.loja = {
       ...where.loja,
@@ -713,7 +570,6 @@ async function listarOperacoesComFiltro(query) {
     };
   }
 
-  // Filtro de Estado
   if (estado && estado !== 'todos' && estado.trim()) {
     where.loja = {
       ...where.loja,
@@ -721,7 +577,6 @@ async function listarOperacoesComFiltro(query) {
     };
   }
 
-  // Filtro de Status da Operação
   if (status && status !== 'todos') {
     if (status === 'FINALIZADA') {
       where.status = 'FINALIZADA';
@@ -814,10 +669,10 @@ async function listarOperacoesComFiltro(query) {
   });
 }
 
-// GET /api/operacoes (Lista operações com filtros de período, loja, cidade, status)
+// GET /api/operacoes
 router.get('/', async (req, res) => {
   try {
-    const formatadas = await listarOperacoesComFiltro(req.query);
+    const formatadas = await listarOperacoesComFiltro(req.query, req.userSistema.id);
     res.json(formatadas);
   } catch (err) {
     console.error('GET /api/operacoes:', err);
@@ -825,11 +680,11 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/operacoes/hoje (Compatibilidade direta)
+// GET /api/operacoes/hoje
 router.get('/hoje', async (req, res) => {
   try {
     const query = { ...req.query, periodo: req.query.periodo || 'hoje' };
-    const formatadas = await listarOperacoesComFiltro(query);
+    const formatadas = await listarOperacoesComFiltro(query, req.userSistema.id);
     res.json(formatadas);
   } catch (err) {
     console.error('GET /api/operacoes/hoje:', err);
@@ -837,11 +692,14 @@ router.get('/hoje', async (req, res) => {
   }
 });
 
-// GET /api/operacoes/:id (Detalhes completos da operação)
+// GET /api/operacoes/:id
 router.get('/:id', async (req, res) => {
   try {
-    const op = await prisma.escala.findUnique({
-      where: { id: req.params.id },
+    const op = await prisma.escala.findFirst({
+      where: {
+        id: req.params.id,
+        usuarioSistemaId: req.userSistema.id,
+      },
       include: {
         loja: true,
         membros: {
@@ -855,7 +713,7 @@ router.get('/:id', async (req, res) => {
     });
 
     if (!op) {
-      return res.status(404).json({ erro: 'Operação não encontrada' });
+      return res.status(404).json({ erro: 'Operação não encontrada ou não pertence ao seu usuário' });
     }
 
     const pivNecessario = op.pivNecessario || op.membros.length || 0;
@@ -928,7 +786,6 @@ router.post('/', async (req, res) => {
       estado,
       endereco,
       observacoes,
-      usuarioCriador
     } = req.body;
 
     const dataRecebida = data || dataOperacao;
@@ -938,39 +795,39 @@ router.post('/', async (req, res) => {
 
     const dt = parseDataOperacao(dataRecebida);
 
-    // 1. Localizar ou Criar Loja
+    // 1. Localizar ou Criar Loja pertencente ao usuário
     let loja = await prisma.loja.findFirst({
-      where: { nome: { contains: lojaNome.trim(), mode: 'insensitive' } },
+      where: {
+        usuarioSistemaId: req.userSistema.id,
+        nome: { contains: lojaNome.trim(), mode: 'insensitive' },
+      },
     });
 
     if (!loja) {
       loja = await prisma.loja.create({
         data: {
+          usuarioSistemaId: req.userSistema.id,
           nome: lojaNome.trim(),
-          cidade: cidade?.trim() || 'Belo Horizonte',
-          estado: estado?.trim().toUpperCase() || 'MG',
+          cidade: cidade?.trim() || 'São Paulo',
+          estado: estado?.trim().toUpperCase() || 'SP',
           endereco: endereco?.trim() || null,
         },
-      });
-    } else if (endereco && !loja.endereco) {
-      loja = await prisma.loja.update({
-        where: { id: loja.id },
-        data: { endereco: endereco.trim() },
       });
     }
 
     const piv = pivNecessario ? parseInt(pivNecessario, 10) : 5;
 
-    // 2. Criar Operação
+    // 2. Criar Operação vinculada ao usuário
     const escala = await prisma.escala.create({
       data: {
+        usuarioSistemaId: req.userSistema.id,
         lojaId: loja.id,
         data: dt,
         horario: horario.trim(),
         pivNecessario: isNaN(piv) ? 5 : piv,
         observacoes: observacoes?.trim() || null,
         status: 'ABERTA',
-        importadoPor: usuarioCriador || 'Kelvi Matos',
+        importadoPor: req.userSistema.nome,
         importadoEm: new Date(),
         statusLogs: {
           create: {
@@ -996,19 +853,19 @@ router.post('/', async (req, res) => {
   }
 });
 
-// POST /api/operacoes/:id/importar-equipe (Cola e vincula a equipe à operação)
+// POST /api/operacoes/:id/importar-equipe
 router.post('/:id/importar-equipe', async (req, res) => {
   try {
     const { id } = req.params;
     const { texto, colaboradores: rawColabs } = req.body;
 
-    const escala = await prisma.escala.findUnique({
-      where: { id },
+    const escala = await prisma.escala.findFirst({
+      where: { id, usuarioSistemaId: req.userSistema.id },
       include: { loja: true, membros: true },
     });
 
     if (!escala) {
-      return res.status(404).json({ erro: 'Operação não encontrada' });
+      return res.status(404).json({ erro: 'Operação não encontrada ou não pertence ao seu usuário' });
     }
 
     let colaboradores = rawColabs;
@@ -1024,17 +881,12 @@ router.post('/:id/importar-equipe', async (req, res) => {
       const nomeLimpo = cleanPersonName(colab.nome);
       if (!nomeLimpo) continue;
 
-      // 1. Localizar usuário existente pelo código, matrícula ou nome
       let user = null;
       if (colab.codigo) {
-        user = await prisma.usuario.findFirst({
-          where: { codigo: colab.codigo },
-        });
+        user = await prisma.usuario.findFirst({ where: { codigo: colab.codigo } });
       }
       if (!user && colab.matricula) {
-        user = await prisma.usuario.findFirst({
-          where: { matricula: colab.matricula },
-        });
+        user = await prisma.usuario.findFirst({ where: { matricula: colab.matricula } });
       }
       if (!user) {
         user = await prisma.usuario.findFirst({
@@ -1042,7 +894,6 @@ router.post('/:id/importar-equipe', async (req, res) => {
         });
       }
 
-      // 2. Se não existir, criar novo cadastro
       if (!user) {
         user = await prisma.usuario.create({
           data: {
@@ -1055,23 +906,8 @@ router.post('/:id/importar-equipe', async (req, res) => {
           },
         });
         novosCadastrados++;
-      } else {
-        // Atualizar dados que faltavam
-        const updateData = {};
-        if (colab.codigo && !user.codigo) updateData.codigo = colab.codigo;
-        if (colab.matricula && !user.matricula) updateData.matricula = colab.matricula;
-        if (colab.telefone && !user.telefone) updateData.telefone = colab.telefone;
-        if (colab.cidade && !user.cidade) updateData.cidade = colab.cidade;
-
-        if (Object.keys(updateData).length > 0) {
-          await prisma.usuario.update({
-            where: { id: user.id },
-            data: updateData,
-          });
-        }
       }
 
-      // 3. Vincular na EscalaMembro
       const statusInicial = colab.status || 'PENDENTE';
       const initialHistory = JSON.stringify([
         { status: statusInicial, horario: new Date().toISOString() }
@@ -1093,20 +929,9 @@ router.post('/:id/importar-equipe', async (req, res) => {
           },
         });
         vinculados++;
-      } else {
-        await prisma.escalaMembro.update({
-          where: { id: membroExistente.id },
-          data: {
-            cargo: colab.cargo || membroExistente.cargo,
-            codigo: colab.codigo || membroExistente.codigo,
-            telefone: colab.telefone || membroExistente.telefone,
-            cidade: colab.cidade || membroExistente.cidade,
-          },
-        });
       }
     }
 
-    // Registrar Log na Timeline
     await prisma.statusLog.create({
       data: {
         escalaId: escala.id,
@@ -1128,7 +953,7 @@ router.post('/:id/importar-equipe', async (req, res) => {
   }
 });
 
-// PUT /api/operacoes/:id/membros/:usuarioId/status (Atualização Rápida de Status com Registro Histórico)
+// PUT /api/operacoes/:id/membros/:usuarioId/status
 router.put('/:id/membros/:usuarioId/status', async (req, res) => {
   try {
     const { id: escalaId, usuarioId } = req.params;
@@ -1138,11 +963,19 @@ router.put('/:id/membros/:usuarioId/status', async (req, res) => {
       return res.status(400).json({ erro: `Status inválido. Use: ${STATUS_VALIDOS.join(', ')}` });
     }
 
-    const s = status.toUpperCase();
+    // Verificar se a escala pertence ao usuário
+    const escala = await prisma.escala.findFirst({
+      where: { id: escalaId, usuarioSistemaId: req.userSistema.id },
+    });
 
+    if (!escala) {
+      return res.status(404).json({ erro: 'Operação não encontrada ou não pertence ao seu usuário' });
+    }
+
+    const s = status.toUpperCase();
     const membro = await prisma.escalaMembro.findUnique({
       where: { escalaId_usuarioId: { escalaId, usuarioId } },
-      include: { usuario: true, escala: { include: { loja: true } } },
+      include: { usuario: true },
     });
 
     if (!membro) {
@@ -1150,9 +983,7 @@ router.put('/:id/membros/:usuarioId/status', async (req, res) => {
     }
 
     const agora = new Date();
-    const updateData = {
-      status: s,
-    };
+    const updateData = { status: s };
 
     if (s === 'CONFIRMADO') {
       updateData.confirmou = true;
@@ -1166,12 +997,9 @@ router.put('/:id/membros/:usuarioId/status', async (req, res) => {
       updateData.chegou = false;
     }
 
-    // Histórico detalhado de transição
     let historico = [];
     try {
-      if (membro.historicoStatus) {
-        historico = JSON.parse(membro.historicoStatus);
-      }
+      if (membro.historicoStatus) historico = JSON.parse(membro.historicoStatus);
     } catch {
       historico = [];
     }
@@ -1190,7 +1018,6 @@ router.put('/:id/membros/:usuarioId/status', async (req, res) => {
       include: { usuario: true },
     });
 
-    // Registrar na Timeline da Operação
     await prisma.statusLog.create({
       data: {
         escalaId,
@@ -1214,13 +1041,19 @@ router.put('/:id/membros/:usuarioId/status', async (req, res) => {
   }
 });
 
-// PUT /api/operacoes/:id/observacoes (Salva observações da operação)
+// PUT /api/operacoes/:id/observacoes
 router.put('/:id/observacoes', async (req, res) => {
   try {
     const { id } = req.params;
     const { observacoes } = req.body;
 
-    const op = await prisma.escala.update({
+    const op = await prisma.escala.findFirst({
+      where: { id, usuarioSistemaId: req.userSistema.id },
+    });
+
+    if (!op) return res.status(404).json({ erro: 'Operação não encontrada ou não pertence ao seu usuário' });
+
+    const escalaAtualizada = await prisma.escala.update({
       where: { id },
       data: { observacoes: observacoes?.trim() || null },
     });
@@ -1233,24 +1066,24 @@ router.put('/:id/observacoes', async (req, res) => {
       },
     });
 
-    res.json({ sucesso: true, observacoes: op.observacoes });
+    res.json({ sucesso: true, observacoes: escalaAtualizada.observacoes });
   } catch (err) {
     console.error('PUT /api/operacoes/:id/observacoes:', err);
     res.status(500).json({ erro: 'Erro ao salvar observações', detalhe: err.message });
   }
 });
 
-// PUT /api/operacoes/:id/finalizar (Finaliza a operação)
+// PUT /api/operacoes/:id/finalizar
 router.put('/:id/finalizar', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const op = await prisma.escala.findUnique({
-      where: { id },
+    const op = await prisma.escala.findFirst({
+      where: { id, usuarioSistemaId: req.userSistema.id },
       include: { loja: true, membros: true },
     });
 
-    if (!op) return res.status(404).json({ erro: 'Operação não encontrada' });
+    if (!op) return res.status(404).json({ erro: 'Operação não encontrada ou não pertence ao seu usuário' });
 
     const piv = op.pivNecessario || op.membros.length;
     const emLoja = op.membros.filter(m => m.status === 'EM_LOJA' || m.chegou).length;
@@ -1285,13 +1118,19 @@ router.put('/:id/finalizar', async (req, res) => {
   }
 });
 
-// POST /api/operacoes/:id/membros (Adicionar membro individual)
+// POST /api/operacoes/:id/membros
 router.post('/:id/membros', async (req, res) => {
   try {
     const { id } = req.params;
     const { usuarioId, cargo, status } = req.body;
 
     if (!usuarioId) return res.status(400).json({ erro: 'usuarioId é obrigatório' });
+
+    const op = await prisma.escala.findFirst({
+      where: { id, usuarioSistemaId: req.userSistema.id },
+    });
+
+    if (!op) return res.status(404).json({ erro: 'Operação não encontrada ou não pertence ao seu usuário' });
 
     const membro = await prisma.escalaMembro.create({
       data: {
@@ -1321,21 +1160,25 @@ router.post('/:id/membros', async (req, res) => {
   }
 });
 
-// DELETE /api/operacoes/:id/membros/:membroId (Remover membro)
+// DELETE /api/operacoes/:id/membros/:membroId
 router.delete('/:id/membros/:membroId', async (req, res) => {
   try {
     const { id, membroId } = req.params;
 
-    const membro = await prisma.escalaMembro.findUnique({
-      where: { id: membroId },
+    const op = await prisma.escala.findFirst({
+      where: { id, usuarioSistemaId: req.userSistema.id },
+    });
+
+    if (!op) return res.status(404).json({ erro: 'Operação não encontrada ou não pertence ao seu usuário' });
+
+    const membro = await prisma.escalaMembro.findFirst({
+      where: { id: membroId, escalaId: id },
       include: { usuario: true },
     });
 
     if (!membro) return res.status(404).json({ erro: 'Membro não encontrado' });
 
-    await prisma.escalaMembro.delete({
-      where: { id: membroId },
-    });
+    await prisma.escalaMembro.delete({ where: { id: membroId } });
 
     await prisma.statusLog.create({
       data: {

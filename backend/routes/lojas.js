@@ -1,5 +1,5 @@
 /**
- * REBUSS OPS — Rota: Lojas
+ * REBUSS OPS — Rota: Lojas (Isolamento por Usuário)
  * GET    /api/lojas
  * GET    /api/lojas/:id
  * POST   /api/lojas
@@ -9,14 +9,21 @@
 
 import { Router } from 'express';
 import prisma from '../lib/prisma.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = Router();
 
-// GET /api/lojas
+// Exige autenticação em todas as rotas de lojas
+router.use(authenticateToken);
+
+// GET /api/lojas (Apenas lojas do usuário autenticado)
 router.get('/', async (req, res) => {
   try {
     const { busca, cidade, estado } = req.query;
-    const where = {};
+    const where = {
+      usuarioSistemaId: req.userSistema.id,
+    };
+
     if (busca) {
       where.OR = [
         { nome: { contains: busca, mode: 'insensitive' } },
@@ -37,19 +44,25 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/lojas/:id
+// GET /api/lojas/:id (Garante propriedade)
 router.get('/:id', async (req, res) => {
   try {
-    const loja = await prisma.loja.findUnique({
-      where: { id: req.params.id },
+    const loja = await prisma.loja.findFirst({
+      where: {
+        id: req.params.id,
+        usuarioSistemaId: req.userSistema.id,
+      },
       include: {
         escalas: {
+          where: {
+            usuarioSistemaId: req.userSistema.id,
+          },
           orderBy: { data: 'desc' },
           take: 10,
         },
       },
     });
-    if (!loja) return res.status(404).json({ erro: 'Loja não encontrada' });
+    if (!loja) return res.status(404).json({ erro: 'Loja não encontrada ou não pertence ao seu usuário' });
     res.json(loja);
   } catch (err) {
     console.error('GET /api/lojas/:id:', err);
@@ -57,7 +70,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/lojas
+// POST /api/lojas (Vincula automaticamente ao usuário logado)
 router.post('/', async (req, res) => {
   try {
     const { nome, endereco, cidade, estado, cep, latitude, longitude } = req.body;
@@ -65,6 +78,7 @@ router.post('/', async (req, res) => {
 
     const loja = await prisma.loja.create({
       data: {
+        usuarioSistemaId: req.userSistema.id,
         nome: nome.trim(),
         endereco: endereco?.trim() || null,
         cidade: cidade?.trim() || null,
@@ -81,9 +95,20 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PUT /api/lojas/:id
+// PUT /api/lojas/:id (Valida propriedade)
 router.put('/:id', async (req, res) => {
   try {
+    const lojaExistente = await prisma.loja.findFirst({
+      where: {
+        id: req.params.id,
+        usuarioSistemaId: req.userSistema.id,
+      },
+    });
+
+    if (!lojaExistente) {
+      return res.status(404).json({ erro: 'Loja não encontrada ou não pertence ao seu usuário' });
+    }
+
     const { nome, endereco, cidade, estado, cep, latitude, longitude } = req.body;
     const data = {};
     if (nome !== undefined) data.nome = nome.trim();
@@ -100,19 +125,28 @@ router.put('/:id', async (req, res) => {
     });
     res.json(loja);
   } catch (err) {
-    if (err.code === 'P2025') return res.status(404).json({ erro: 'Loja não encontrada' });
     console.error('PUT /api/lojas/:id:', err);
     res.status(500).json({ erro: 'Erro ao atualizar loja', detalhe: err.message });
   }
 });
 
-// DELETE /api/lojas/:id
+// DELETE /api/lojas/:id (Valida propriedade)
 router.delete('/:id', async (req, res) => {
   try {
+    const lojaExistente = await prisma.loja.findFirst({
+      where: {
+        id: req.params.id,
+        usuarioSistemaId: req.userSistema.id,
+      },
+    });
+
+    if (!lojaExistente) {
+      return res.status(404).json({ erro: 'Loja não encontrada ou não pertence ao seu usuário' });
+    }
+
     await prisma.loja.delete({ where: { id: req.params.id } });
     res.json({ mensagem: 'Loja excluída com sucesso' });
   } catch (err) {
-    if (err.code === 'P2025') return res.status(404).json({ erro: 'Loja não encontrada' });
     console.error('DELETE /api/lojas/:id:', err);
     res.status(500).json({ erro: 'Erro ao excluir loja', detalhe: err.message });
   }

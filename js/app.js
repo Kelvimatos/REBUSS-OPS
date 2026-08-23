@@ -65,6 +65,11 @@ const App = (() => {
 
   function getUserPhotosMap() {
     try {
+      if (!localStorage.getItem('rebuss_clean_init_v2')) {
+        localStorage.removeItem('rebuss_user_photos');
+        localStorage.setItem('rebuss_clean_init_v2', '1');
+        return {};
+      }
       return JSON.parse(localStorage.getItem('rebuss_user_photos')) || {};
     } catch {
       return {};
@@ -82,6 +87,17 @@ const App = (() => {
   function getUserPhotoEntry(user) {
     const targetUser = user || getActiveUser();
     if (!targetUser) return null;
+
+    // 1. Se estiver no AuthModule com foto no banco
+    if (window.AuthModule && typeof window.AuthModule.getCurrentUser === 'function') {
+      const authUser = window.AuthModule.getCurrentUser();
+      if (authUser && (authUser.id === targetUser.id || authUser.email === targetUser.email)) {
+        if (authUser.fotoPerfil) {
+          return normalizePhotoEntry(authUser.fotoPerfil);
+        }
+      }
+    }
+
     const userId = typeof targetUser === 'string' ? targetUser : (targetUser.id || targetUser.email);
     if (!userId) return null;
     const map = getUserPhotosMap();
@@ -100,8 +116,12 @@ const App = (() => {
   }
 
   function buildAvatarImgHtml(src, alt, className, posX, posY) {
-    const style = `object-position: ${posX}% ${posY}%;`;
+    const style = `object-position: ${posX}% ${posY}%; width:100%; height:100%; object-fit:cover; border-radius:50%;`;
     return `<img src="${src}" alt="${alt}" class="${className}" style="${style}">`;
+  }
+
+  function buildDefaultAvatarHtml(className = 'header-user-avatar') {
+    return `<img src="assets/rebuss.png" alt="Avatar Padrão" class="${className}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">`;
   }
 
   function renderModalPhotoPreview(user) {
@@ -123,22 +143,38 @@ const App = (() => {
     } else {
       if (posPanel) posPanel.classList.add('hide');
       preview.innerHTML = `
-        <div class="user-avatar-neutral" style="width:100px; height:100px; background:var(--bg-card-subtle, #f1f5f9); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto; border:2px dashed var(--border, #cbd5e1);">
-          <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-muted, #64748b);">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-            <circle cx="12" cy="7" r="4"></circle>
-          </svg>
+        <div class="photo-preview-frame" style="width:100px; height:100px; margin:0 auto; border-radius:50%; overflow:hidden; border:2px solid var(--border, #cbd5e1); background:var(--bg-card-subtle, #f1f5f9);">
+          <img src="assets/rebuss.png" alt="Avatar Padrão" style="width:100%; height:100%; object-fit:cover;">
         </div>
       `;
     }
   }
 
-  function setCustomPhoto(userId, base64Data, posX = 50, posY = 50) {
+  async function setCustomPhoto(userId, base64Data, posX = 50, posY = 50) {
     const activeUser = getActiveUser();
     const targetUserId = userId || activeUser.id;
     const map = getUserPhotosMap();
     map[targetUserId] = { data: base64Data, posX, posY };
     saveUserPhotosMap(map);
+
+    // Sincronizar com AuthModule e banco de dados
+    if (window.AuthModule && typeof window.AuthModule.getCurrentUser === 'function') {
+      const authUser = window.AuthModule.getCurrentUser();
+      if (authUser) {
+        authUser.fotoPerfil = base64Data;
+        if (typeof window.AuthModule.setCurrentUser === 'function') {
+          window.AuthModule.setCurrentUser(authUser);
+        }
+      }
+    }
+
+    if (window.RebussAPI && RebussAPI.auth && typeof RebussAPI.auth.updateFoto === 'function' && RebussAPI.getToken()) {
+      try {
+        await RebussAPI.auth.updateFoto(base64Data);
+      } catch (err) {
+        console.warn('Aviso: Não foi possível sincronizar foto com o servidor:', err.message);
+      }
+    }
 
     updateAllUserAvatars();
     renderModalPhotoPreview(activeUser);
@@ -165,16 +201,35 @@ const App = (() => {
     showToast('Posicionamento salvo!', '✓');
   }
 
-  function removeCustomPhoto(userId) {
+  async function removeCustomPhoto(userId) {
     const activeUser = getActiveUser();
     const targetUserId = userId || activeUser.id;
     const map = getUserPhotosMap();
 
-    // Remove do mapa de fotos
+    // 1. Remove do mapa de fotos local
     delete map[targetUserId];
     saveUserPhotosMap(map);
 
-    // Limpar estados temporários
+    // 2. Sincronizar com AuthModule e banco de dados
+    if (window.AuthModule && typeof window.AuthModule.getCurrentUser === 'function') {
+      const authUser = window.AuthModule.getCurrentUser();
+      if (authUser) {
+        authUser.fotoPerfil = null;
+        if (typeof window.AuthModule.setCurrentUser === 'function') {
+          window.AuthModule.setCurrentUser(authUser);
+        }
+      }
+    }
+
+    if (window.RebussAPI && RebussAPI.auth && typeof RebussAPI.auth.removeFoto === 'function' && RebussAPI.getToken()) {
+      try {
+        await RebussAPI.auth.removeFoto();
+      } catch (err) {
+        console.warn('Aviso: Não foi possível sincronizar remoção no servidor:', err.message);
+      }
+    }
+
+    // 3. Limpar estados temporários
     pendingPhotoFile = null;
     pendingPhotoDataUrl = null;
     photoPosX = 50;
@@ -188,7 +243,7 @@ const App = (() => {
     if (btnAdjust) btnAdjust.classList.add('hide');
     if (btnRemove) btnRemove.classList.add('hide');
 
-    // Atualiza imediatamente o preview e todos os avatares para o estado neutro padrão
+    // 4. Atualiza imediatamente o preview e todos os avatares para rebuss.png
     renderModalPhotoPreview(activeUser);
     updateAllUserAvatars();
 
@@ -363,14 +418,7 @@ const App = (() => {
         const pos = getUserPhotoPosition(activeUser);
         headerAvatarWrapper.innerHTML = buildAvatarImgHtml(photoSrc, activeUser.name, 'header-user-avatar', pos.posX, pos.posY);
       } else {
-        headerAvatarWrapper.innerHTML = `
-          <div class="header-user-avatar-neutral">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-              <circle cx="12" cy="7" r="4"></circle>
-            </svg>
-          </div>
-        `;
+        headerAvatarWrapper.innerHTML = buildDefaultAvatarHtml('header-user-avatar');
       }
     }
 
@@ -385,14 +433,7 @@ const App = (() => {
             const pos = getUserPhotoPosition(user);
             avatarWrapper.innerHTML = buildAvatarImgHtml(photoSrc, user.name, 'user-avatar-img', pos.posX, pos.posY);
           } else {
-            avatarWrapper.innerHTML = `
-              <div class="user-avatar-neutral">
-                <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="12" cy="7" r="4"></circle>
-                </svg>
-              </div>
-            `;
+            avatarWrapper.innerHTML = buildDefaultAvatarHtml('user-avatar-img');
           }
         }
       }

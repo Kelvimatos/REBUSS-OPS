@@ -1,18 +1,15 @@
 /**
  * REBUSS OPS — Rotas de Dashboard Operacional
- * Consulta dados em tempo real no PostgreSQL
- * GET /api/dashboard (geral consolidado)
- * GET /api/dashboard/indicadores
- * GET /api/dashboard/escalas-hoje
- * GET /api/dashboard/alertas
- * GET /api/dashboard/ranking
- * GET /api/dashboard/equipes
+ * Isolamento Multi-Usuário (Multi-Tenant) — Todos os indicadores pertencem ao usuário logado
  */
 
 import { Router } from 'express';
 import prisma from '../lib/prisma.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = Router();
+
+router.use(authenticateToken);
 
 function buildDateFilter(periodo, dataCustom) {
   const agora = new Date();
@@ -57,12 +54,17 @@ router.get('/indicadores', async (req, res) => {
     const { periodo = 'hoje', data, cidade, estado, lojaId } = req.query;
     const dateWhere = buildDateFilter(periodo, data);
 
-    const whereEscala = {};
+    const whereEscala = {
+      usuarioSistemaId: req.userSistema.id,
+    };
+
     if (dateWhere) whereEscala.data = dateWhere;
     if (lojaId) whereEscala.lojaId = lojaId;
 
     if (cidade || estado) {
-      whereEscala.loja = {};
+      whereEscala.loja = {
+        usuarioSistemaId: req.userSistema.id,
+      };
       if (cidade && cidade !== 'todas') {
         whereEscala.loja.cidade = { contains: cidade, mode: 'insensitive' };
       }
@@ -104,7 +106,6 @@ router.get('/indicadores', async (req, res) => {
       }
     }
 
-    // Taxas Percentuais
     const taxaAceitacao = convitesTotais > 0 ? ((confirmados / convitesTotais) * 100).toFixed(1) : 0;
     const taxaPresenca = confirmados > 0 ? ((emLoja / confirmados) * 100).toFixed(1) : 0;
     const taxaFalta = confirmados > 0 ? ((faltas / confirmados) * 100).toFixed(1) : 0;
@@ -139,9 +140,16 @@ router.get('/escalas-hoje', async (req, res) => {
     const { cidade } = req.query;
     const dateWhere = buildDateFilter('hoje');
 
-    const where = { data: dateWhere };
+    const where = {
+      usuarioSistemaId: req.userSistema.id,
+      data: dateWhere,
+    };
+
     if (cidade && cidade !== 'todas') {
-      where.loja = { cidade: { contains: cidade, mode: 'insensitive' } };
+      where.loja = {
+        usuarioSistemaId: req.userSistema.id,
+        cidade: { contains: cidade, mode: 'insensitive' },
+      };
     }
 
     const escalas = await prisma.escala.findMany({
@@ -195,15 +203,22 @@ router.get('/escalas-hoje', async (req, res) => {
   }
 });
 
-// GET /api/dashboard/alertas (Alertas operacionais inteligentes)
+// GET /api/dashboard/alertas
 router.get('/alertas', async (req, res) => {
   try {
     const { cidade } = req.query;
     const dateWhere = buildDateFilter('hoje');
 
-    const where = { data: dateWhere };
+    const where = {
+      usuarioSistemaId: req.userSistema.id,
+      data: dateWhere,
+    };
+
     if (cidade && cidade !== 'todas') {
-      where.loja = { cidade: { contains: cidade, mode: 'insensitive' } };
+      where.loja = {
+        usuarioSistemaId: req.userSistema.id,
+        cidade: { contains: cidade, mode: 'insensitive' },
+      };
     }
 
     const escalas = await prisma.escala.findMany({
@@ -223,7 +238,7 @@ router.get('/alertas', async (req, res) => {
       if (faltantesPIV > 0) {
         alertas.push({
           id: `piv-${esc.id}`,
-          nivel: 'critico', // vermelho
+          nivel: 'critico',
           icone: '🔴',
           titulo: `Escala ${esc.loja.nome}`,
           mensagem: `Está com ${faltantesPIV} PIV faltando para atingir a meta de ${esc.pivNecessario}.`,
@@ -236,7 +251,7 @@ router.get('/alertas', async (req, res) => {
       if (pendentes.length > 0) {
         alertas.push({
           id: `pendente-${esc.id}`,
-          nivel: 'aviso', // amarelo
+          nivel: 'aviso',
           icone: '🟡',
           titulo: `Confirmação pendente: ${esc.loja.nome}`,
           mensagem: `${pendentes.length} colaboradores ainda não confirmaram presença para às ${esc.horario}.`,
@@ -249,7 +264,7 @@ router.get('/alertas', async (req, res) => {
       if (atrasados.length > 0) {
         alertas.push({
           id: `atraso-${esc.id}`,
-          nivel: 'alerta', // laranja
+          nivel: 'alerta',
           icone: '🟠',
           titulo: `Atrasos identificados: ${esc.loja.nome}`,
           mensagem: `${atrasados.length} colaborador(es) com status de atraso reportado.`,
@@ -262,7 +277,7 @@ router.get('/alertas', async (req, res) => {
       if (faltaram.length > 0) {
         alertas.push({
           id: `falta-${esc.id}`,
-          nivel: 'critico', // vermelho
+          nivel: 'critico',
           icone: '🚫',
           titulo: `Falta confirmada: ${esc.loja.nome}`,
           mensagem: `${faltaram.length} colaborador(es) não compareceram à loja.`,
@@ -279,13 +294,28 @@ router.get('/alertas', async (req, res) => {
   }
 });
 
-// GET /api/dashboard/ranking (Ranking dos colaboradores com mais presenças e pontualidade)
+// GET /api/dashboard/ranking (Calcula ranking baseado apenas nas escalas do usuário logado)
 router.get('/ranking', async (req, res) => {
   try {
     const usuarios = await prisma.usuario.findMany({
-      where: { status: true },
+      where: {
+        status: true,
+        escalas: {
+          some: {
+            escala: {
+              usuarioSistemaId: req.userSistema.id,
+            },
+          },
+        },
+      },
       include: {
-        escalas: true,
+        escalas: {
+          where: {
+            escala: {
+              usuarioSistemaId: req.userSistema.id,
+            },
+          },
+        },
       },
     });
 
@@ -317,17 +347,16 @@ router.get('/ranking', async (req, res) => {
       };
     });
 
-    // Ordenar pelo score desc
     ranking.sort((a, b) => b.score - a.score || b.presencas - a.presencas);
 
-    res.json(ranking.slice(0, 10)); // Top 10
+    res.json(ranking.slice(0, 10));
   } catch (err) {
     console.error('GET /api/dashboard/ranking:', err);
     res.status(500).json({ erro: 'Erro ao gerar ranking', detalhe: err.message });
   }
 });
 
-// GET /api/dashboard/equipes (Resumo das equipes)
+// GET /api/dashboard/equipes (Resumo das equipes baseado no usuário)
 router.get('/equipes', async (req, res) => {
   try {
     const equipes = await prisma.equipe.findMany({
@@ -336,7 +365,15 @@ router.get('/equipes', async (req, res) => {
         membros: {
           include: {
             usuario: {
-              include: { escalas: true },
+              include: {
+                escalas: {
+                  where: {
+                    escala: {
+                      usuarioSistemaId: req.userSistema.id,
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -355,7 +392,7 @@ router.get('/equipes', async (req, res) => {
         }
       }
 
-      const taxaPresenca = totalEscalas > 0 ? Math.round((presencas / totalEscalas) * 100) : 95;
+      const taxaPresenca = totalEscalas > 0 ? Math.round((presencas / totalEscalas) * 100) : 100;
 
       return {
         id: eq.id,
@@ -380,10 +417,15 @@ router.get('/', async (req, res) => {
     const { periodo = 'hoje', data, cidade } = req.query;
     const dateWhere = buildDateFilter(periodo, data);
 
-    const where = {};
+    const where = {
+      usuarioSistemaId: req.userSistema.id,
+    };
     if (dateWhere) where.data = dateWhere;
     if (cidade && cidade !== 'todas') {
-      where.loja = { cidade: { contains: cidade, mode: 'insensitive' } };
+      where.loja = {
+        usuarioSistemaId: req.userSistema.id,
+        cidade: { contains: cidade, mode: 'insensitive' },
+      };
     }
 
     const escalas = await prisma.escala.findMany({
