@@ -254,28 +254,408 @@ function parseEquipeText(rawText) {
   return colaboradores;
 }
 
+function parseDataOperacao(dataInput) {
+  if (!dataInput) {
+    const d = new Date();
+    d.setUTCHours(12, 0, 0, 0);
+    return d;
+  }
+  if (dataInput instanceof Date && !isNaN(dataInput.getTime())) {
+    const d = new Date(dataInput);
+    d.setUTCHours(12, 0, 0, 0);
+    return d;
+  }
+  if (typeof dataInput === 'string') {
+    const trimmed = dataInput.trim();
+    // DD/MM/YYYY or DD-MM-YYYY
+    const brMatch = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if (brMatch) {
+      const day = parseInt(brMatch[1], 10);
+      const month = parseInt(brMatch[2], 10) - 1;
+      const year = parseInt(brMatch[3], 10);
+      return new Date(Date.UTC(year, month, day, 12, 0, 0));
+    }
+    // YYYY-MM-DD
+    const isoMatch = trimmed.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+    if (isoMatch) {
+      const year = parseInt(isoMatch[1], 10);
+      const month = parseInt(isoMatch[2], 10) - 1;
+      const day = parseInt(isoMatch[3], 10);
+      return new Date(Date.UTC(year, month, day, 12, 0, 0));
+    }
+    const parsed = new Date(trimmed);
+    if (!isNaN(parsed.getTime())) {
+      parsed.setUTCHours(12, 0, 0, 0);
+      return parsed;
+    }
+  }
+  const d = new Date();
+  d.setUTCHours(12, 0, 0, 0);
+  return d;
+}
+
+/**
+ * Parser inteligente de metadados completos de uma operação (Loja, Data, Horário, Cidade, PIV, Colaboradores)
+ */
+function parseOperacaoCompletaText(rawText) {
+  if (!rawText || !rawText.trim()) {
+    throw new Error('Texto de importação vazio');
+  }
+
+  const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+  let lojaNome = '';
+  let dataOperacao = null;
+  let horario = '';
+  let cidade = '';
+  let estado = '';
+  let pivNecessario = 0;
+
+  for (const line of lines) {
+    // 1. Loja / Unidade
+    if (!lojaNome) {
+      const mLoja = line.match(/(?:loja|unidade|opera[çc][ãa]o|cliente)\s*[:\-–—]?\s*([^\n\r\|]+)/i);
+      if (mLoja && mLoja[1].trim()) {
+        lojaNome = mLoja[1].replace(/[*_#]/g, '').trim();
+      } else if (/^\s*\*?\s*(?:ESCALA|OPERAÇÃO)\s+([^\*]+)\*?/i.test(line)) {
+        const mTitle = line.match(/(?:ESCALA|OPERAÇÃO)\s+(?:DA\s+)?([^\*]+)/i);
+        if (mTitle) lojaNome = mTitle[1].replace(/[*_#]/g, '').trim();
+      }
+    }
+
+    // 2. Data
+    if (!dataOperacao) {
+      const mData = line.match(/(?:data\s*[:\-–—]?\s*)?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/i);
+      if (mData) {
+        dataOperacao = parseDataOperacao(mData[1]);
+      }
+    }
+
+    // 3. Horário
+    if (!horario) {
+      const mHorario = line.match(/(?:hor[áa]rio|in[íi]cio|hora)\s*[:\-–—]?\s*(\d{1,2}[:hH]\d{2})/i) ||
+                        line.match(/\b(\d{1,2}[:hH]\d{2})\b/);
+      if (mHorario) {
+        horario = mHorario[1].replace(/[hH]/, ':');
+        if (/^\d:/.test(horario)) horario = '0' + horario;
+      }
+    }
+
+    // 4. Cidade / Estado
+    if (!cidade) {
+      const mLocal = line.match(/(?:cidade|local|munic[íi]pio)\s*[:\-–—]?\s*([^\n\r\/\|\-]+)(?:[\/\-]\s*([A-Za-z]{2}))?/i);
+      if (mLocal) {
+        cidade = mLocal[1].replace(/[*_#]/g, '').trim();
+        if (mLocal[2]) estado = mLocal[2].toUpperCase().trim();
+      } else {
+        const mCityKnown = line.match(/\b(Belo Horizonte|São Paulo|Rio de Janeiro|Juiz de Fora|Curitiba|Brasília|Brasilia|Goiânia|Goiania|Campinas|Niterói|Niteroi|Salvador|Fortaleza|Recife)\b/i);
+        if (mCityKnown) {
+          cidade = mCityKnown[1];
+        }
+      }
+    }
+
+    // 5. PIV
+    const mPiv = line.match(/(?:piv|meta|meta piv|piv necess[áa]rio)\s*[:\-–—]?\s*(\d+)/i);
+    if (mPiv) {
+      pivNecessario = parseInt(mPiv[1], 10);
+    }
+  }
+
+  // Fallbacks
+  if (!lojaNome) {
+    const firstStoreLine = lines.find(l => !l.startsWith('|') && !/^(data|hor|cid|colab|cargo|#|\*|status)/i.test(l) && l.length < 60);
+    lojaNome = firstStoreLine ? firstStoreLine.replace(/[*_#]/g, '').trim() : 'Loja Operacional';
+  }
+
+  if (!dataOperacao) {
+    dataOperacao = new Date();
+    dataOperacao.setUTCHours(12, 0, 0, 0);
+  }
+
+  if (!horario) horario = '18:30';
+  if (!cidade) cidade = 'Belo Horizonte';
+  if (!estado) estado = 'MG';
+
+  const colaboradores = parseEquipeText(rawText);
+  if (pivNecessario <= 1 && colaboradores.length > 0) {
+    pivNecessario = Math.max(colaboradores.length, 5);
+  }
+
+  return {
+    lojaNome,
+    dataOperacao,
+    horario,
+    cidade,
+    estado,
+    pivNecessario: pivNecessario || 5,
+    colaboradores,
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ENDPOINTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-// POST /api/operacoes/analisar (Pré-visualização da equipe sem gravar)
+// POST /api/operacoes/analisar (Pré-visualização da operação e equipe)
 router.post('/analisar', async (req, res) => {
   try {
     const { texto } = req.body;
     if (!texto || !texto.trim()) {
-      return res.status(400).json({ erro: 'Envie o texto da equipe para análise' });
+      return res.status(400).json({ erro: 'Envie o texto da operação para análise' });
     }
 
-    const colaboradores = parseEquipeText(texto);
+    const analise = parseOperacaoCompletaText(texto);
+
+    // Verificar se já existe operação para esta loja nesta data
+    let jaExiste = false;
+    let escalaExistente = null;
+
+    if (analise.lojaNome) {
+      const dt = new Date(analise.dataOperacao);
+      const start = new Date(dt);
+      start.setUTCHours(0, 0, 0, 0);
+      const end = new Date(dt);
+      end.setUTCHours(23, 59, 59, 999);
+
+      escalaExistente = await prisma.escala.findFirst({
+        where: {
+          loja: { nome: { contains: analise.lojaNome.trim(), mode: 'insensitive' } },
+          data: { gte: start, lte: end },
+        },
+        include: { loja: true },
+      });
+
+      if (escalaExistente) {
+        jaExiste = true;
+      }
+    }
 
     res.json({
       sucesso: true,
-      totalColaboradores: colaboradores.length,
-      colaboradores,
+      jaExiste,
+      escalaExistenteId: escalaExistente?.id || null,
+      totalColaboradores: analise.colaboradores.length,
+      colaboradores: analise.colaboradores,
+      analise: {
+        lojaNome: analise.lojaNome,
+        dataOperacao: analise.dataOperacao.toISOString(),
+        horario: analise.horario,
+        cidade: analise.cidade,
+        estado: analise.estado,
+        pivNecessario: analise.pivNecessario,
+        colaboradores: analise.colaboradores,
+      },
     });
   } catch (err) {
     console.error('POST /api/operacoes/analisar:', err);
     res.status(400).json({ erro: err.message });
+  }
+});
+
+// POST /api/operacoes/importar (Grava ou atualiza a operação completa a partir do Importador)
+router.post('/importar', async (req, res) => {
+  try {
+    const {
+      lojaNome,
+      dataOperacao,
+      data,
+      horario,
+      cidade,
+      estado,
+      endereco,
+      pivNecessario,
+      colaboradores = [],
+      usuarioResponsavel,
+    } = req.body;
+
+    if (!lojaNome) {
+      return res.status(400).json({ erro: 'O nome da loja é obrigatório' });
+    }
+
+    const dt = parseDataOperacao(dataOperacao || data);
+    const start = new Date(dt);
+    start.setUTCHours(0, 0, 0, 0);
+    const end = new Date(dt);
+    end.setUTCHours(23, 59, 59, 999);
+
+    // 1. Localizar ou Criar Loja
+    let loja = await prisma.loja.findFirst({
+      where: { nome: { contains: lojaNome.trim(), mode: 'insensitive' } },
+    });
+
+    if (!loja) {
+      loja = await prisma.loja.create({
+        data: {
+          nome: lojaNome.trim(),
+          cidade: cidade?.trim() || 'Belo Horizonte',
+          estado: estado?.trim().toUpperCase() || 'MG',
+          endereco: endereco?.trim() || null,
+        },
+      });
+    } else if (endereco && !loja.endereco) {
+      loja = await prisma.loja.update({
+        where: { id: loja.id },
+        data: { endereco: endereco.trim() },
+      });
+    }
+
+    // 2. Verificar se já existe a escala desta loja nesta data
+    let escala = await prisma.escala.findFirst({
+      where: {
+        lojaId: loja.id,
+        data: { gte: start, lte: end },
+      },
+      include: { membros: true, loja: true },
+    });
+
+    let isNova = false;
+    const piv = pivNecessario ? parseInt(pivNecessario, 10) : Math.max(colaboradores.length, 5);
+
+    if (!escala) {
+      isNova = true;
+      escala = await prisma.escala.create({
+        data: {
+          lojaId: loja.id,
+          data: dt,
+          horario: (horario || '18:30').trim(),
+          pivNecessario: piv,
+          status: 'ABERTA',
+          importadoPor: usuarioResponsavel || 'Kelvi Matos',
+          importadoEm: new Date(),
+          statusLogs: {
+            create: {
+              tipo: 'IMPORTACAO',
+              descricao: `Operação criada via importação inteligente (${colaboradores.length} colaboradores).`,
+            },
+          },
+        },
+        include: { membros: true, loja: true },
+      });
+    } else {
+      escala = await prisma.escala.update({
+        where: { id: escala.id },
+        data: {
+          horario: horario ? horario.trim() : escala.horario,
+          pivNecessario: piv,
+        },
+        include: { membros: true, loja: true },
+      });
+    }
+
+    // 3. Processar colaboradores
+    let novosCadastrados = 0;
+    let totalAtualizados = 0;
+
+    for (const colab of colaboradores) {
+      const nomeLimpo = cleanPersonName(colab.nome);
+      if (!nomeLimpo) continue;
+
+      let user = null;
+      if (colab.codigo) {
+        user = await prisma.usuario.findFirst({ where: { codigo: colab.codigo } });
+      }
+      if (!user && colab.matricula) {
+        user = await prisma.usuario.findFirst({ where: { matricula: colab.matricula } });
+      }
+      if (!user) {
+        user = await prisma.usuario.findFirst({
+          where: { nome: { equals: nomeLimpo, mode: 'insensitive' } },
+        });
+      }
+
+      if (!user) {
+        user = await prisma.usuario.create({
+          data: {
+            nome: nomeLimpo,
+            codigo: colab.codigo || null,
+            matricula: colab.matricula || null,
+            telefone: colab.telefone || null,
+            cidade: colab.cidade || loja.cidade || 'Belo Horizonte',
+            estado: loja.estado || 'MG',
+          },
+        });
+        novosCadastrados++;
+      } else {
+        const updateData = {};
+        if (colab.codigo && !user.codigo) updateData.codigo = colab.codigo;
+        if (colab.matricula && !user.matricula) updateData.matricula = colab.matricula;
+        if (colab.telefone && !user.telefone) updateData.telefone = colab.telefone;
+        if (colab.cidade && !user.cidade) updateData.cidade = colab.cidade;
+
+        if (Object.keys(updateData).length > 0) {
+          await prisma.usuario.update({
+            where: { id: user.id },
+            data: updateData,
+          });
+        }
+      }
+
+      // Vincular na escala
+      const statusInicial = colab.status || 'PENDENTE';
+      const initialHistory = JSON.stringify([
+        { status: statusInicial, horario: new Date().toISOString() }
+      ]);
+
+      const membroExistente = escala.membros.find(m => m.usuarioId === user.id);
+      if (!membroExistente) {
+        await prisma.escalaMembro.create({
+          data: {
+            escalaId: escala.id,
+            usuarioId: user.id,
+            codigo: colab.codigo || user.codigo || null,
+            cargo: colab.cargo || 'Operador',
+            status: statusInicial,
+            confirmou: statusInicial === 'CONFIRMADO',
+            cidade: colab.cidade || user.cidade || null,
+            telefone: colab.telefone || user.telefone || null,
+            historicoStatus: initialHistory,
+          },
+        });
+        totalAtualizados++;
+      } else {
+        await prisma.escalaMembro.update({
+          where: { id: membroExistente.id },
+          data: {
+            cargo: colab.cargo || membroExistente.cargo,
+            codigo: colab.codigo || membroExistente.codigo,
+            telefone: colab.telefone || membroExistente.telefone,
+            cidade: colab.cidade || membroExistente.cidade,
+          },
+        });
+        totalAtualizados++;
+      }
+    }
+
+    // 4. Gravar log de importação
+    try {
+      await prisma.importacaoLog.create({
+        data: {
+          usuarioNome: usuarioResponsavel || 'Kelvi Matos',
+          lojaNome: loja.nome,
+          dataOperacao: dt,
+          horarioOperacao: horario || '18:30',
+          totalProcessados: colaboradores.length,
+          totalNovos: novosCadastrados,
+        },
+      });
+    } catch (e) {
+      console.warn('Erro ao gravar importacaoLog:', e.message);
+    }
+
+    res.json({
+      sucesso: true,
+      mensagem: isNova
+        ? `Operação ${loja.nome} criada e salva no PostgreSQL!`
+        : `Operação ${loja.nome} atualizada com sucesso!`,
+      operacaoId: escala.id,
+      totalProcessados: colaboradores.length,
+      totalNovos: novosCadastrados,
+      totalAtualizados,
+      erros: 0,
+    });
+  } catch (err) {
+    console.error('POST /api/operacoes/importar:', err);
+    res.status(500).json({ erro: 'Erro ao importar operação', detalhe: err.message });
   }
 });
 
@@ -535,12 +915,13 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/operacoes (Criar Nova Operação)
+// POST /api/operacoes (Criar Nova Operação Manual)
 router.post('/', async (req, res) => {
   try {
     const {
       lojaNome,
       data,
+      dataOperacao,
       horario,
       pivNecessario,
       cidade,
@@ -550,12 +931,12 @@ router.post('/', async (req, res) => {
       usuarioCriador
     } = req.body;
 
-    if (!lojaNome || !data || !horario) {
+    const dataRecebida = data || dataOperacao;
+    if (!lojaNome || !dataRecebida || !horario) {
       return res.status(400).json({ erro: 'Loja, Data e Horário são obrigatórios' });
     }
 
-    const dt = new Date(data);
-    dt.setUTCHours(12, 0, 0, 0);
+    const dt = parseDataOperacao(dataRecebida);
 
     // 1. Localizar ou Criar Loja
     let loja = await prisma.loja.findFirst({
@@ -566,8 +947,8 @@ router.post('/', async (req, res) => {
       loja = await prisma.loja.create({
         data: {
           nome: lojaNome.trim(),
-          cidade: cidade?.trim() || 'São Paulo',
-          estado: estado?.trim().toUpperCase() || 'SP',
+          cidade: cidade?.trim() || 'Belo Horizonte',
+          estado: estado?.trim().toUpperCase() || 'MG',
           endereco: endereco?.trim() || null,
         },
       });
@@ -578,13 +959,15 @@ router.post('/', async (req, res) => {
       });
     }
 
+    const piv = pivNecessario ? parseInt(pivNecessario, 10) : 5;
+
     // 2. Criar Operação
     const escala = await prisma.escala.create({
       data: {
         lojaId: loja.id,
         data: dt,
         horario: horario.trim(),
-        pivNecessario: pivNecessario ? parseInt(pivNecessario, 10) : 5,
+        pivNecessario: isNaN(piv) ? 5 : piv,
         observacoes: observacoes?.trim() || null,
         status: 'ABERTA',
         importadoPor: usuarioCriador || 'Kelvi Matos',
@@ -592,7 +975,7 @@ router.post('/', async (req, res) => {
         statusLogs: {
           create: {
             tipo: 'CRIACAO',
-            descricao: `Operação ${loja.nome} criada com PIV de ${pivNecessario || 5} pessoas.`,
+            descricao: `Operação ${loja.nome} criada com PIV de ${isNaN(piv) ? 5 : piv} pessoas.`,
           },
         },
       },

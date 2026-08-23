@@ -34,12 +34,21 @@ const PORT = process.env.PORT || 3001;
 
 // ─── Middlewares ───────────────────────────────────────────────────────────────
 app.use(cors({
-  origin: ['http://localhost:3001', 'http://127.0.0.1:3001', 'http://localhost:5500'],
+  origin: true,
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Normaliza o caminho se a requisição for roteada via Netlify Functions
+app.use((req, res, next) => {
+  if (req.url.startsWith('/.netlify/functions/api')) {
+    req.url = req.url.replace('/.netlify/functions/api', '/api');
+  }
+  next();
+});
 
 // ─── Health Check ──────────────────────────────────────────────────────────────
 app.get('/api', (req, res) => {
@@ -47,6 +56,7 @@ app.get('/api', (req, res) => {
     sistema: 'REBUSS OPS API',
     versao: '2.1.0',
     status: 'online',
+    ambiente: process.env.NETLIFY ? 'netlify-serverless' : 'standalone-node',
     horario: new Date().toISOString(),
     endpoints: [
       'POST /api/auth/register',
@@ -81,12 +91,10 @@ app.use('/api/dashboard',    dashboardRouter);
 app.use('/api/operacoes',    operacoesRouter);
 app.use('/api/historico',    historicoRouter);
 
-// ─── Frontend Estático ─────────────────────────────────────────────────────────
-// Serve os arquivos do frontend (index.html, css/, js/, assets/)
+// ─── Frontend Estático (Apenas em execução Node standalone) ────────────────────
 const frontendDir = join(__dirname, '..');
 app.use(express.static(frontendDir, {
   index: 'index.html',
-  // Não servir node_modules, backend, prisma, gerado
   setHeaders: (res, filePath) => {
     if (filePath.includes('node_modules') || filePath.includes('backend') || filePath.includes('.env')) {
       res.status(403).end();
@@ -94,7 +102,7 @@ app.use(express.static(frontendDir, {
   },
 }));
 
-// SPA fallback — qualquer rota não encontrada retorna o index.html
+// SPA fallback — qualquer rota não encontrada retorna o index.html (ou 404 em /api)
 app.use((req, res) => {
   if (req.path.startsWith('/api')) {
     return res.status(404).json({ erro: 'Endpoint não encontrado' });
@@ -108,20 +116,32 @@ app.use((err, req, res, _next) => {
   res.status(500).json({ erro: 'Erro interno do servidor', detalhe: err.message });
 });
 
-// ─── Start ─────────────────────────────────────────────────────────────────────
-app.listen(PORT, async () => {
-  console.log('');
-  console.log('╔══════════════════════════════════════════╗');
-  console.log('║       REBUSS OPS — API & Frontend        ║');
-  console.log('╠══════════════════════════════════════════╣');
-  console.log(`║  URL:    http://localhost:${PORT}            ║`);
-  console.log(`║  API:    http://localhost:${PORT}/api        ║`);
-  console.log(`║  Banco:  rebuss_ops (PostgreSQL)          ║`);
-  console.log('╚══════════════════════════════════════════╝');
-  console.log('');
+// ─── Start (Executa apenas quando iniciado diretamente via CLI/Node) ──────────
+const isDirectRun = Boolean(process.argv[1] && (
+  fileURLToPath(import.meta.url) === process.argv[1] ||
+  process.argv[1].endsWith('backend\\server.js') ||
+  process.argv[1].endsWith('backend/server.js')
+));
 
-  // Executar seed do admin se necessário
-  await seedInitialAdmin();
-});
+if (isDirectRun && process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, async () => {
+    console.log('');
+    console.log('╔══════════════════════════════════════════╗');
+    console.log('║       REBUSS OPS — API & Frontend        ║');
+    console.log('╠══════════════════════════════════════════╣');
+    console.log(`║  URL:    http://localhost:${PORT}            ║`);
+    console.log(`║  API:    http://localhost:${PORT}/api        ║`);
+    console.log(`║  Banco:  PostgreSQL (Prisma)              ║`);
+    console.log('╚══════════════════════════════════════════╝');
+    console.log('');
+
+    // Executar seed do admin se configurado
+    try {
+      await seedInitialAdmin();
+    } catch (e) {
+      console.warn('[REBUSS OPS] Aviso ao verificar seed inicial:', e.message);
+    }
+  });
+}
 
 export default app;

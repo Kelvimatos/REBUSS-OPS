@@ -870,18 +870,33 @@ const OperacoesModule = (() => {
   async function handleCriarOperacao(e) {
     e.preventDefault();
 
-    const loja = document.getElementById('novo-op-loja')?.value.trim();
-    const data = document.getElementById('novo-op-data')?.value;
-    const horario = document.getElementById('novo-op-horario')?.value;
-    const piv = parseInt(document.getElementById('novo-op-piv')?.value, 10) || 5;
-    const cidade = document.getElementById('novo-op-cidade')?.value.trim() || 'Belo Horizonte';
-    const estado = document.getElementById('novo-op-estado')?.value.trim().toUpperCase() || 'MG';
-    const endereco = document.getElementById('novo-op-endereco')?.value.trim() || '';
-    const observacoes = document.getElementById('novo-op-observacoes')?.value.trim() || '';
+    const btnSubmit = document.getElementById('btn-submit-nova-op');
+    const lojaInput = document.getElementById('novo-op-loja');
+    const dataInput = document.getElementById('novo-op-data');
+    const horarioInput = document.getElementById('novo-op-horario');
+    const pivInput = document.getElementById('novo-op-piv');
+    const cidadeInput = document.getElementById('novo-op-cidade');
+    const estadoInput = document.getElementById('novo-op-estado');
+    const enderecoInput = document.getElementById('novo-op-endereco');
+    const obsInput = document.getElementById('novo-op-observacoes');
+
+    const loja = lojaInput?.value.trim();
+    const data = dataInput?.value;
+    const horario = horarioInput?.value;
+    const piv = parseInt(pivInput?.value, 10) || 5;
+    const cidade = cidadeInput?.value.trim() || 'Belo Horizonte';
+    const estado = estadoInput?.value.trim().toUpperCase() || 'MG';
+    const endereco = enderecoInput?.value.trim() || '';
+    const observacoes = obsInput?.value.trim() || '';
 
     if (!loja || !data || !horario) {
-      showToast('Preencha os campos obrigatórios da operação', 'error');
+      showToast('Preencha os campos obrigatórios da operação (Loja, Data e Horário)', 'error');
       return;
+    }
+
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.textContent = 'Criando Operação...';
     }
 
     try {
@@ -896,6 +911,11 @@ const OperacoesModule = (() => {
         observacoes,
       });
 
+      // Limpar formulário
+      if (lojaInput) lojaInput.value = '';
+      if (enderecoInput) enderecoInput.value = '';
+      if (obsInput) obsInput.value = '';
+
       fecharTodosModaisOps();
       showToast(`Operação ${loja} criada com sucesso!`);
 
@@ -907,7 +927,12 @@ const OperacoesModule = (() => {
       }
     } catch (err) {
       console.error('Erro ao criar operação:', err);
-      showToast('Erro ao criar operação no banco', 'error');
+      showToast(err.message || 'Erro ao criar operação no banco', 'error');
+    } finally {
+      if (btnSubmit) {
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = 'Criar Operação';
+      }
     }
   }
 

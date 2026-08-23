@@ -1,8 +1,13 @@
 {
+  "name": "rebuss-ops",
+  "version": "2.1.0",
+  "private": true,
   "type": "module",
   "scripts": {
     "server": "node backend/server.js",
     "dev": "node backend/server.js",
+    "start": "node backend/server.js",
+    "build": "npx prisma generate",
     "studio": "npx prisma studio",
     "generate": "npx prisma generate",
     "migrate": "npx prisma migrate dev"
@@ -16,6 +21,7 @@
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.23.0",
-    "prisma": "^7.9.1"
+    "prisma": "^7.9.1",
+    "serverless-http": "^4.0.0"
   }
 }

@@ -8,9 +8,20 @@ var RebussAPI = (function () {
 
   const TOKEN_KEY = 'rebuss_auth_token';
 
-  const BASE_URL = (typeof window !== 'undefined' && window.location && window.location.origin && window.location.origin.includes(':3001'))
-    ? '/api'
-    : 'http://localhost:3001/api';
+  // Resolução dinâmica de URL para Netlify, produção em nuvem e desenvolvimento local
+  function getApiBaseUrl() {
+    if (typeof window === 'undefined') return '/api';
+    if (window.REBUSS_API_URL) return window.REBUSS_API_URL;
+    
+    // Se aberto via file:// ou Live Server local sem proxy
+    if (window.location.protocol === 'file:' || (window.location.hostname === 'localhost' && window.location.port === '5500')) {
+      return 'http://localhost:3001/api';
+    }
+    // Produção na Netlify, domínio próprio ou servidor integrado local
+    return '/api';
+  }
+
+  const BASE_URL = getApiBaseUrl();
 
   let isConnected = false;
 
