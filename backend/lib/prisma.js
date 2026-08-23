@@ -10,8 +10,81 @@ import pg from 'pg';
 
 const { Pool } = pg;
 
+/**
+ * Sanitiza e normaliza a URL do PostgreSQL para garantir compatibilidade com
+ * o parser nativo de URL do Node.js, Prisma e driver pg.
+ * - Remove aspas/espaços acidentais no início/fim
+ * - Aplica URL encoding seguro em senhas/usuários com caracteres especiais (@, #, $, %, etc.)
+ * - Garante parâmetros de SSL para conexões de nuvem
+ */
+function sanitizeDatabaseUrl(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== 'string') return '';
+
+  let cleanUrl = rawUrl.trim().replace(/^["']|["']$/g, '').trim();
+
+  try {
+    const protoMatch = cleanUrl.match(/^([a-zA-Z0-9+.-]+:\/\/)/);
+    if (!protoMatch) return cleanUrl;
+
+    const protocol = protoMatch[1];
+    const afterProto = cleanUrl.slice(protocol.length);
+
+    const queryIndex = afterProto.indexOf('?');
+    const pathIndex = afterProto.indexOf('/');
+
+    let hostEndIndex = afterProto.length;
+    if (pathIndex !== -1 && queryIndex !== -1) {
+      hostEndIndex = Math.min(pathIndex, queryIndex);
+    } else if (pathIndex !== -1) {
+      hostEndIndex = pathIndex;
+    } else if (queryIndex !== -1) {
+      hostEndIndex = queryIndex;
+    }
+
+    const authAndHost = afterProto.slice(0, hostEndIndex);
+    const pathAndQuery = afterProto.slice(hostEndIndex);
+
+    const lastAtIndex = authAndHost.lastIndexOf('@');
+    if (lastAtIndex === -1) {
+      return cleanUrl;
+    }
+
+    const authPart = authAndHost.slice(0, lastAtIndex);
+    const hostPart = authAndHost.slice(lastAtIndex + 1);
+
+    const firstColonIndex = authPart.indexOf(':');
+    if (firstColonIndex === -1) {
+      return cleanUrl;
+    }
+
+    const rawUser = authPart.slice(0, firstColonIndex);
+    const rawPass = authPart.slice(firstColonIndex + 1);
+
+    let safeUser = rawUser;
+    let safePass = rawPass;
+    try {
+      safeUser = encodeURIComponent(decodeURIComponent(rawUser));
+      safePass = encodeURIComponent(decodeURIComponent(rawPass));
+    } catch {
+      safeUser = encodeURIComponent(rawUser);
+      safePass = encodeURIComponent(rawPass);
+    }
+
+    return `${protocol}${safeUser}:${safePass}@${hostPart}${pathAndQuery || '/postgres'}`;
+  } catch {
+    return cleanUrl;
+  }
+}
+
 function createPrismaClient() {
-  const connectionString = process.env.DATABASE_URL;
+  const rawConnectionString = process.env.DATABASE_URL || '';
+  const connectionString = sanitizeDatabaseUrl(rawConnectionString);
+
+  // Atualiza process.env.DATABASE_URL com a URL limpa/encodada para que o Prisma Engine utilize
+  if (connectionString) {
+    process.env.DATABASE_URL = connectionString;
+  }
+
   const isLocal = !connectionString || connectionString.includes('localhost') || connectionString.includes('127.0.0.1');
 
   const pool = new Pool({
@@ -36,5 +109,3 @@ if (process.env.NODE_ENV !== 'production' || process.env.NETLIFY) {
 }
 
 export default prisma;
-
-
