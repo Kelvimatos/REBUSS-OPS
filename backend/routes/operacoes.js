@@ -535,7 +535,7 @@ router.post('/importar', async (req, res) => {
 });
 
 // Listar operações com filtros isolados por usuário
-async function listarOperacoesComFiltro(query, usuarioSistemaId) {
+async function listarOperacoesComFiltro(query, userSistema) {
   const { periodo = 'hoje', data, loja, cidade, estado, status, limit = 100, page = 1 } = query;
 
   const now = new Date();
@@ -549,9 +549,14 @@ async function listarOperacoesComFiltro(query, usuarioSistemaId) {
   const tomorrowEnd = new Date(todayEnd);
   tomorrowEnd.setUTCDate(tomorrowEnd.getUTCDate() + 1);
 
-  const where = {
-    usuarioSistemaId,
-  };
+  const where = {};
+  if (userSistema && typeof userSistema === 'object') {
+    if (userSistema.perfil !== 'ADMIN' && userSistema.perfil !== 'GESTOR') {
+      where.usuarioSistemaId = userSistema.id;
+    }
+  } else if (userSistema) {
+    where.usuarioSistemaId = userSistema;
+  }
 
   if (data) {
     const customDate = new Date(data);
@@ -687,7 +692,7 @@ async function listarOperacoesComFiltro(query, usuarioSistemaId) {
 // GET /api/operacoes
 router.get('/', async (req, res) => {
   try {
-    const formatadas = await listarOperacoesComFiltro(req.query, req.userSistema.id);
+    const formatadas = await listarOperacoesComFiltro(req.query, req.userSistema);
     res.json(formatadas);
   } catch (err) {
     console.error('GET /api/operacoes:', err);
@@ -699,7 +704,7 @@ router.get('/', async (req, res) => {
 router.get('/hoje', async (req, res) => {
   try {
     const query = { ...req.query, periodo: req.query.periodo || 'hoje' };
-    const formatadas = await listarOperacoesComFiltro(query, req.userSistema.id);
+    const formatadas = await listarOperacoesComFiltro(query, req.userSistema);
     res.json(formatadas);
   } catch (err) {
     console.error('GET /api/operacoes/hoje:', err);

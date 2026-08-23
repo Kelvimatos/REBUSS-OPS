@@ -981,8 +981,21 @@ const OperacoesModule = (() => {
   // ─────────────────────────────────────────────────────────────────────────────
   // 5.1. MODAL: EDITAR OPERAÇÃO
   // ─────────────────────────────────────────────────────────────────────────────
-  async function abrirModalEditarOperacao() {
-    let op = state.operacaoAtiva;
+  async function abrirModalEditarOperacao(targetOpId) {
+    let op = null;
+
+    if (typeof targetOpId === 'string' && targetOpId.trim()) {
+      try {
+        op = await RebussAPI.operacoes.get(targetOpId.trim());
+        state.operacaoAtiva = op;
+      } catch (err) {
+        console.error('[Operações] Erro ao carregar operação por ID:', err);
+      }
+    }
+
+    if (!op) {
+      op = state.operacaoAtiva;
+    }
 
     // Se state.operacaoAtiva não estiver no estado, tenta recuperar pelo container
     if (!op || !op.id) {
@@ -1672,10 +1685,16 @@ const OperacoesModule = (() => {
     fecharPainelOperacao,
     abrirModalNovaOperacao,
     abrirModalEditarOperacao,
+    editarOperacao: abrirModalEditarOperacao,
+    abrirEditarOperacao: abrirModalEditarOperacao,
+    openEditModal: abrirModalEditarOperacao,
+    abrirModalOperacao: abrirModalEditarOperacao,
     handleEditarOperacao,
     abrirModalEditarMembro,
     editarTelefoneInline,
     copiarTodosTelefonesOperacao,
+    copiarTodosTelefones: copiarTodosTelefonesOperacao,
+    copiarTelefones: copiarTodosTelefonesOperacao,
     abrirDossieColaborador,
     alterarStatusMembro,
     removerColaboradorOperacao,
@@ -1683,3 +1702,7 @@ const OperacoesModule = (() => {
 })();
 
 window.OperacoesModule = OperacoesModule;
+window.abrirModalEditarOperacao = OperacoesModule.abrirModalEditarOperacao;
+window.handleEditarOperacao = OperacoesModule.handleEditarOperacao;
+window.copiarTodosTelefonesOperacao = OperacoesModule.copiarTodosTelefonesOperacao;
+window.copiarTelefones = OperacoesModule.copiarTodosTelefonesOperacao;

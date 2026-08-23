@@ -254,6 +254,15 @@ const EscalasModule = (() => {
     return rawElements;
   }
 
+  function formatarDistancia(distanciaEmMetros) {
+    if (!distanciaEmMetros || isNaN(distanciaEmMetros)) return '0 m';
+    if (distanciaEmMetros < 1000) {
+      return `${Math.round(distanciaEmMetros)} m`;
+    }
+    const km = (distanciaEmMetros / 1000).toFixed(1).replace('.', ',');
+    return `${km} km`;
+  }
+
   // Classificador e Formatador de Estação
   function processTransitElements(rawElements, storeLat, storeLon, city, uf) {
     const seen = new Set();
@@ -342,24 +351,26 @@ const EscalasModule = (() => {
       });
     }
 
-    // Separar estações sobre trilhos vs ônibus
+    // Ordenar rigorosamente pela distância real do endereço (menor para maior)
     const railStations = candidates
-      .filter(c => c.isRail && c.straightDistM <= 12000)
-      .sort((a, b) => a.walkDistKm - b.walkDistKm);
+      .filter(c => c.isRail && c.straightDistM <= 15000)
+      .sort((a, b) => a.straightDistM - b.straightDistM);
 
     const busStations = candidates
-      .filter(c => c.isBus && c.straightDistM <= 7000)
-      .sort((a, b) => a.walkDistKm - b.walkDistKm);
+      .filter(c => c.isBus && c.straightDistM <= 10000)
+      .sort((a, b) => a.straightDistM - b.straightDistM);
 
     if (railStations.length > 0) {
       return {
         hasRail: true,
-        stations: railStations.slice(0, 3)
+        stations: railStations.slice(0, 3),
+        totalFound: railStations.length
       };
     } else {
       return {
         hasRail: false,
-        stations: busStations.slice(0, 3)
+        stations: busStations.slice(0, 3),
+        totalFound: busStations.length
       };
     }
   }
@@ -379,7 +390,7 @@ const EscalasModule = (() => {
       currentTransitResults = result;
 
       if (!result.stations || result.stations.length === 0) {
-        showError('Nenhum ponto de transporte relevante encontrado nas proximidades.');
+        showError('Não foram localizadas estações de metrô ou transporte próximas a este endereço.');
       } else {
         renderTransitCards(result, address);
         if (!result.hasRail) {
@@ -389,7 +400,7 @@ const EscalasModule = (() => {
       }
     } catch (e) {
       if (e.name !== 'AbortError') {
-        showError('Endereço não localizado no mapa. Verifique a digitação ou selecione a cidade correta.');
+        showError('Não foi possível localizar o endereço para determinar as estações mais próximas. Verifique o endereço ou selecione a cidade correta.');
       }
     } finally {
       setLoading(false);
@@ -403,14 +414,15 @@ const EscalasModule = (() => {
 
     container.innerHTML = '';
     const medals = [
-      { title: 'Mais recomendada', medal: '🥇', rankClass: 'rank-1' },
-      { title: 'Segunda opção', medal: '🥈', rankClass: 'rank-2' },
-      { title: 'Terceira opção', medal: '🥉', rankClass: 'rank-3' }
+      { title: '1ª mais próxima', medal: '🥇', rankClass: 'rank-1' },
+      { title: '2ª mais próxima', medal: '🥈', rankClass: 'rank-2' },
+      { title: '3ª mais próxima', medal: '🥉', rankClass: 'rank-3' }
     ];
 
     result.stations.forEach((st, idx) => {
       const rank = medals[idx] || medals[2];
       const isSelected = idx === selectedStationIndex;
+      const distFormatted = formatarDistancia(st.straightDistM);
 
       const originAddr = `Estacao ${st.name}, ${selectedCity} - ${selectedUF}`;
       const destAddr = `${address}, ${selectedCity} - ${selectedUF}`;
@@ -441,15 +453,15 @@ const EscalasModule = (() => {
         <div class="transit-station-main">
           <div class="transit-station-name-row">
             <span class="transit-icon">${st.icon}</span>
-            <strong class="transit-station-name">${escHtml(st.name)}</strong>
+            <strong class="transit-station-name">${idx + 1}. Estação ${escHtml(st.name)} — ${distFormatted}</strong>
           </div>
           ${lineBadgeHtml}
         </div>
 
         <div class="transit-metrics-row">
-          <div class="transit-metric" title="Distância estimada caminhando">
-            <span class="metric-icon">🚶</span>
-            <span class="metric-val">~${st.walkDistKm} km</span>
+          <div class="transit-metric" title="Distância calculada até o endereço">
+            <span class="metric-icon">📏</span>
+            <span class="metric-val">~${distFormatted}</span>
           </div>
           <div class="transit-metric" title="Tempo estimado caminhando">
             <span class="metric-icon">⏱️</span>
@@ -483,6 +495,20 @@ const EscalasModule = (() => {
 
       container.appendChild(card);
     });
+
+    if (result.stations.length < 3 && result.stations.length > 0) {
+      const notice = document.createElement('div');
+      notice.className = 'transit-notice-count';
+      notice.style.fontSize = '0.82rem';
+      notice.style.color = 'var(--text-muted)';
+      notice.style.padding = '6px 10px';
+      notice.style.marginTop = '4px';
+      notice.style.background = 'var(--bg-card-subtle)';
+      notice.style.borderRadius = 'var(--radius-sm)';
+      notice.style.border = '1px dashed var(--border)';
+      notice.innerHTML = `ℹ️ Foram localizadas apenas ${result.stations.length} estação(ões) próxima(s) nesta região.`;
+      container.appendChild(notice);
+    }
 
     container.classList.remove('hide');
   }
@@ -577,7 +603,8 @@ const EscalasModule = (() => {
       const lineStr = activeSt.lineInfo ? ` (${activeSt.lineInfo.label})` : '';
       const directionsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent('Estacao ' + activeSt.name + ', ' + selectedCity + ' - ' + selectedUF)}&destination=${encodeURIComponent(ad + ', ' + selectedCity + ' - ' + selectedUF)}&travelmode=walking`;
 
-      stationInfoText = `\n${activeSt.icon} *Estação mais próxima:* ${activeSt.name}${lineStr}\n🚶 *Distância:* ~${activeSt.walkDistKm} km\n⏱️ *Tempo estimado:* ~${activeSt.walkMin} min a pé\n🗺️ *Como chegar:* ${directionsUrl}`;
+      const distStr = formatarDistancia(activeSt.straightDistM);
+      stationInfoText = `\n${activeSt.icon} *Estação mais próxima:* ${activeSt.name}${lineStr} — ${distStr}\n⏱️ *Tempo estimado:* ~${activeSt.walkMin} min a pé\n🗺️ *Como chegar:* ${directionsUrl}`;
     }
 
     const arrivalInfoText = ar
