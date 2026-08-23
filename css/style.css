@@ -3123,32 +3123,6 @@ input::-ms-clear {
   height: 0 !important;
 }
 
-.btn-toggle-password {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: transparent;
-  border: none;
-  color: #94a3b8;
-  cursor: pointer;
-  padding: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  z-index: 5;
-  transition: color 0.15s ease, transform 0.15s ease;
-}
-
-.btn-toggle-password:hover {
-  color: var(--primary);
-  background: rgba(14, 165, 233, 0.08);
-}
-
-.btn-toggle-password:active {
-  transform: translateY(-50%) scale(0.92);
-}
 
 .btn-auth-submit {
   width: 100%;
@@ -5338,7 +5312,7 @@ input::-ms-clear {
 }
 
 /* ==========================================================================
-   INPUTS COM ÍCONE & BOTÃO MOSTRAR/OCULTAR SENHA
+   INPUTS COM ÍCONE & BOTÃO MOSTRAR/OCULTAR SENHA (ÁREA DE CLIQUE 40x40px)
    ========================================================================== */
 .input-with-icon {
   position: relative !important;
@@ -5349,7 +5323,7 @@ input::-ms-clear {
 
 .input-with-icon input {
   width: 100% !important;
-  padding-right: 42px !important;
+  padding-right: 48px !important; /* Espaço confortável para a área de clique de 40px */
 }
 
 .input-with-icon > svg:first-child {
@@ -5366,35 +5340,55 @@ input::-ms-clear {
 
 .btn-toggle-password {
   position: absolute !important;
-  right: 8px !important;
+  right: 3px !important;
   top: 50% !important;
   transform: translateY(-50%) !important;
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  min-height: 40px !important;
+  padding: 0 !important;
+  margin: 0 !important;
   background: transparent !important;
   border: none !important;
   color: var(--text-muted) !important;
   cursor: pointer !important;
-  padding: 6px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   border-radius: var(--radius-sm) !important;
-  transition: color 0.15s ease, background 0.15s ease !important;
-  z-index: 5 !important;
+  transition: color 0.15s ease, background 0.15s ease, transform 0.1s ease !important;
+  z-index: 10 !important;
   user-select: none !important;
-  line-height: 1 !important;
+  -webkit-user-select: none !important;
+  touch-action: manipulation !important;
+  -webkit-tap-highlight-color: transparent !important;
 }
 
 .btn-toggle-password:hover {
-  color: var(--text-main) !important;
-  background: var(--bg-card-hover) !important;
+  color: var(--primary) !important;
+  background: rgba(14, 165, 233, 0.1) !important;
+}
+
+.btn-toggle-password:active {
+  transform: translateY(-50%) scale(0.92) !important;
+  background: rgba(14, 165, 233, 0.18) !important;
 }
 
 .btn-toggle-password:focus {
   outline: none !important;
+}
+
+.btn-toggle-password:focus-visible {
+  outline: 2px solid var(--primary) !important;
+  outline-offset: -2px !important;
   color: var(--primary) !important;
 }
 
 .btn-toggle-password svg {
+  width: 20px !important;
+  height: 20px !important;
   pointer-events: none !important;
   display: block !important;
+  flex-shrink: 0 !important;
 }
