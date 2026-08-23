@@ -35,6 +35,27 @@ const App = (() => {
   let dragStartPosX = 50;
   let dragStartPosY = 50;
 
+  function getActiveUser() {
+    if (window.AuthModule && typeof window.AuthModule.getCurrentUser === 'function') {
+      const authUser = window.AuthModule.getCurrentUser();
+      if (authUser) {
+        return {
+          id: authUser.id || authUser.email || 'user',
+          name: authUser.nome || 'Usuário',
+          displayName: authUser.nome || 'Usuário',
+          email: authUser.email,
+          perfil: authUser.perfil
+        };
+      }
+    }
+    const savedUserId = localStorage.getItem('rebuss_selected_user_id');
+    if (savedUserId) {
+      const found = USERS.find(u => u.id === savedUserId);
+      if (found) return found;
+    }
+    return currentUser || { id: 'default_user', name: 'Usuário', displayName: 'Usuário' };
+  }
+
   function normalizePhotoEntry(entry) {
     if (!entry) return null;
     if (typeof entry === 'string') return { data: entry, posX: 50, posY: 50 };
@@ -59,13 +80,17 @@ const App = (() => {
   }
 
   function getUserPhotoEntry(user) {
-    if (!user) return null;
-    return normalizePhotoEntry(getUserPhotosMap()[user.id]);
+    const targetUser = user || getActiveUser();
+    if (!targetUser) return null;
+    const userId = typeof targetUser === 'string' ? targetUser : (targetUser.id || targetUser.email);
+    if (!userId) return null;
+    const map = getUserPhotosMap();
+    return normalizePhotoEntry(map[userId]);
   }
 
   function getUserPhotoSrc(user) {
     const entry = getUserPhotoEntry(user);
-    return entry ? entry.data : user.defaultPhoto;
+    return (entry && entry.data) ? entry.data : null;
   }
 
   function getUserPhotoPosition(user) {
@@ -79,31 +104,95 @@ const App = (() => {
     return `<img src="${src}" alt="${alt}" class="${className}" style="${style}">`;
   }
 
+  function renderModalPhotoPreview(user) {
+    const preview = document.getElementById('modal-user-photo-preview');
+    if (!preview) return;
+    const targetUser = user || getActiveUser();
+    const photoSrc = getUserPhotoSrc(targetUser);
+    const posPanel = document.getElementById('photo-position-panel');
+
+    if (photoSrc) {
+      const pos = getUserPhotoPosition(targetUser);
+      photoPosX = pos.posX;
+      photoPosY = pos.posY;
+      preview.innerHTML = `
+        <div class="photo-preview-frame" id="photo-preview-frame">
+          <img src="${photoSrc}" alt="${targetUser.name || 'Usuário'}" class="photo-preview-img" style="width:100%;height:100%;object-fit:cover;object-position:${pos.posX}% ${pos.posY}%;border:none;">
+        </div>
+      `;
+    } else {
+      if (posPanel) posPanel.classList.add('hide');
+      preview.innerHTML = `
+        <div class="user-avatar-neutral" style="width:100px; height:100px; background:var(--bg-card-subtle, #f1f5f9); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto; border:2px dashed var(--border, #cbd5e1);">
+          <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-muted, #64748b);">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+        </div>
+      `;
+    }
+  }
+
   function setCustomPhoto(userId, base64Data, posX = 50, posY = 50) {
+    const activeUser = getActiveUser();
+    const targetUserId = userId || activeUser.id;
     const map = getUserPhotosMap();
-    map[userId] = { data: base64Data, posX, posY };
+    map[targetUserId] = { data: base64Data, posX, posY };
     saveUserPhotosMap(map);
+
     updateAllUserAvatars();
+    renderModalPhotoPreview(activeUser);
+
+    const btnAdjust = document.getElementById('btn-adjust-photo-position');
+    const btnRemove = document.getElementById('btn-remove-user-photo');
+    if (btnAdjust) btnAdjust.classList.remove('hide');
+    if (btnRemove) btnRemove.classList.remove('hide');
+
     showToast('Foto de perfil atualizada!', '✓');
     playSound('copy');
   }
 
   function updatePhotoPosition(userId, posX, posY) {
+    const activeUser = getActiveUser();
+    const targetUserId = userId || activeUser.id;
     const map = getUserPhotosMap();
-    const entry = normalizePhotoEntry(map[userId]);
+    const entry = normalizePhotoEntry(map[targetUserId]);
     if (!entry) return;
-    map[userId] = { data: entry.data, posX, posY };
+    map[targetUserId] = { data: entry.data, posX, posY };
     saveUserPhotosMap(map);
     updateAllUserAvatars();
+    renderModalPhotoPreview(activeUser);
     showToast('Posicionamento salvo!', '✓');
   }
 
   function removeCustomPhoto(userId) {
+    const activeUser = getActiveUser();
+    const targetUserId = userId || activeUser.id;
     const map = getUserPhotosMap();
-    delete map[userId];
+
+    // Remove do mapa de fotos
+    delete map[targetUserId];
     saveUserPhotosMap(map);
+
+    // Limpar estados temporários
+    pendingPhotoFile = null;
+    pendingPhotoDataUrl = null;
+    photoPosX = 50;
+    photoPosY = 50;
+
+    const posPanel = document.getElementById('photo-position-panel');
+    if (posPanel) posPanel.classList.add('hide');
+
+    const btnAdjust = document.getElementById('btn-adjust-photo-position');
+    const btnRemove = document.getElementById('btn-remove-user-photo');
+    if (btnAdjust) btnAdjust.classList.add('hide');
+    if (btnRemove) btnRemove.classList.add('hide');
+
+    // Atualiza imediatamente o preview e todos os avatares para o estado neutro padrão
+    renderModalPhotoPreview(activeUser);
     updateAllUserAvatars();
-    showToast('Foto de perfil removida.', 'ℹ');
+
+    showToast('Foto de perfil removida com sucesso!', 'ℹ');
     playSound('undo');
   }
 
@@ -264,7 +353,28 @@ const App = (() => {
   }
 
   function updateAllUserAvatars() {
-    // 1. Atualizar Tela de Seleção de Usuários
+    const activeUser = getActiveUser();
+
+    // 1. Atualizar Header do Usuário Ativo
+    const headerAvatarWrapper = document.getElementById('header-user-avatar-wrapper');
+    if (headerAvatarWrapper) {
+      const photoSrc = getUserPhotoSrc(activeUser);
+      if (photoSrc) {
+        const pos = getUserPhotoPosition(activeUser);
+        headerAvatarWrapper.innerHTML = buildAvatarImgHtml(photoSrc, activeUser.name, 'header-user-avatar', pos.posX, pos.posY);
+      } else {
+        headerAvatarWrapper.innerHTML = `
+          <div class="header-user-avatar-neutral">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+          </div>
+        `;
+      }
+    }
+
+    // 2. Atualizar Tela de Seleção de Usuários
     USERS.forEach(user => {
       const card = document.querySelector(`.user-card-option[data-user-id="${user.id}"]`);
       if (card) {
@@ -287,59 +397,6 @@ const App = (() => {
         }
       }
     });
-
-    // 2. Atualizar Header do Usuário Ativo
-    if (currentUser) {
-      const headerAvatarWrapper = document.getElementById('header-user-avatar-wrapper');
-      const photoSrc = getUserPhotoSrc(currentUser);
-      if (headerAvatarWrapper) {
-        if (photoSrc) {
-          const pos = getUserPhotoPosition(currentUser);
-          headerAvatarWrapper.innerHTML = buildAvatarImgHtml(photoSrc, currentUser.name, 'header-user-avatar', pos.posX, pos.posY);
-        } else {
-          headerAvatarWrapper.innerHTML = `
-            <div class="header-user-avatar-neutral">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
-              </svg>
-            </div>
-          `;
-        }
-      }
-
-      // Atualizar Modal de Foto
-      const modalPhotoPreview = document.getElementById('modal-user-photo-preview');
-      const posPanel = document.getElementById('photo-position-panel');
-      if (modalPhotoPreview) {
-        if (photoSrc) {
-          const pos = getUserPhotoPosition(currentUser);
-          photoPosX = pos.posX;
-          photoPosY = pos.posY;
-          modalPhotoPreview.innerHTML = `
-            <div class="photo-preview-frame" id="photo-preview-frame">
-              ${buildAvatarImgHtml(photoSrc, currentUser.name, 'header-user-avatar', pos.posX, pos.posY)}
-            </div>
-          `;
-          const previewImg = modalPhotoPreview.querySelector('img');
-          if (previewImg) {
-            previewImg.style.width = '100%';
-            previewImg.style.height = '100%';
-            previewImg.style.border = 'none';
-          }
-        } else {
-          if (posPanel) posPanel.classList.add('hide');
-          modalPhotoPreview.innerHTML = `
-            <div class="user-avatar-neutral" style="width:100px; height:100px;">
-              <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
-              </svg>
-            </div>
-          `;
-        }
-      }
-    }
   }
 
   // ==========================================================================
@@ -567,17 +624,25 @@ const App = (() => {
   }
 
   function openPhotoModal() {
-    if (!currentUser) return;
+    const user = getActiveUser();
     const modal = document.getElementById('modal-user-photo');
     const userNameEl = document.getElementById('modal-user-photo-name');
     const posPanel = document.getElementById('photo-position-panel');
     const btnAdjust = document.getElementById('btn-adjust-photo-position');
-    if (userNameEl) userNameEl.textContent = currentUser.name;
+    const btnRemove = document.getElementById('btn-remove-user-photo');
+
+    if (userNameEl) {
+      userNameEl.textContent = user.name || user.displayName || 'Usuário';
+    }
     if (posPanel) posPanel.classList.add('hide');
     pendingPhotoDataUrl = null;
-    updateAllUserAvatars();
-    const hasCustom = !!getUserPhotoEntry(currentUser);
+    pendingPhotoFile = null;
+
+    const hasCustom = !!getUserPhotoEntry(user);
     if (btnAdjust) btnAdjust.classList.toggle('hide', !hasCustom);
+    if (btnRemove) btnRemove.classList.toggle('hide', !hasCustom);
+
+    renderModalPhotoPreview(user);
     if (modal) modal.classList.add('open');
   }
 
@@ -816,8 +881,9 @@ const App = (() => {
     if (btnUploadPhoto && photoFileInput) {
       btnUploadPhoto.addEventListener('click', () => photoFileInput.click());
       photoFileInput.addEventListener('change', (e) => {
-        if (e.target.files && e.target.files[0] && currentUser) {
-          handlePhotoUpload(e.target.files[0], currentUser.id);
+        const user = getActiveUser();
+        if (e.target.files && e.target.files[0] && user) {
+          handlePhotoUpload(e.target.files[0], user.id);
           e.target.value = '';
         }
       });
@@ -825,23 +891,23 @@ const App = (() => {
 
     if (btnAdjustPhoto) {
       btnAdjustPhoto.addEventListener('click', () => {
-        if (!currentUser) return;
-        const entry = getUserPhotoEntry(currentUser);
+        const user = getActiveUser();
+        const entry = getUserPhotoEntry(user);
         if (!entry) {
           showToast('Adicione uma foto antes de ajustar o posicionamento.', 'ℹ');
           return;
         }
         photoPosX = entry.posX;
         photoPosY = entry.posY;
-        showPhotoPositionPanel(entry.data, currentUser.id, false);
+        showPhotoPositionPanel(entry.data, user.id, false);
       });
     }
 
     if (btnRemovePhoto) {
       btnRemovePhoto.addEventListener('click', () => {
-        if (currentUser) {
-          removeCustomPhoto(currentUser.id);
-          document.getElementById('photo-position-panel')?.classList.add('hide');
+        const user = getActiveUser();
+        if (user) {
+          removeCustomPhoto(user.id);
         }
       });
     }

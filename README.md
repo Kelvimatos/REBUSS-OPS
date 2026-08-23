@@ -19,12 +19,12 @@ O **REBUSS OPS** reúne em um único site limpo, sóbrio, rápido e profissional
 Ao abrir o site, é exibida uma tela simples perguntando: **"Quem está acessando?"**
 
 Perfis disponíveis:
-* **Kelvi** (com foto real ampliada e identificação como Kelvi Matos)
-* **Francisco** (avatar neutro)
-* **Bruno** (avatar neutro)
-* **Matheus** (avatar neutro)
-* **Arthur** (avatar neutro)
-* **Alexandre** (avatar neutro)
+* **Kelvi** (avatar neutro / personalizável)
+* **Francisco** (avatar neutro / personalizável)
+* **Bruno** (avatar neutro / personalizável)
+* **Matheus** (avatar neutro / personalizável)
+* **Arthur** (avatar neutro / personalizável)
+* **Alexandre** (avatar neutro / personalizável)
 
 A escolha fica salva no `localStorage`. Para trocar de perfil a qualquer momento, basta clicar no botão **"Trocar"** no topo direito da página.
 
@@ -62,8 +62,7 @@ REBUSS OPS/
 │
 ├── assets/
 │   ├── logo.png                # Logotipo REBUSS
-│   ├── favicon.png             # Favicon
-│   └── kelvi-matos.jpg         # Foto do Kelvi Matos
+│   └── favicon.png             # Favicon
 │
 ├── css/
 │   └── style.css               # Estilos sóbrios, limpos e responsivos (Design System)

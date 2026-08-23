@@ -215,14 +215,21 @@ const AuthModule = (() => {
   function updateHeaderUserUI() {
     const nameEl = document.getElementById('header-user-name');
     const roleEl = document.querySelector('.header-user-role');
+    const dropdownNameEl = document.getElementById('dropdown-user-name');
+    const dropdownRoleEl = document.getElementById('dropdown-user-role');
     const navAdminLink = document.getElementById('nav-link-usuarios-sistema');
     const headerAvatarWrapper = document.getElementById('header-user-avatar-wrapper');
 
     if (currentUser) {
-      if (nameEl) nameEl.textContent = currentUser.nome.split(' ')[0];
+      const firstName = currentUser.nome ? currentUser.nome.split(' ')[0] : 'Usuário';
+      if (nameEl) nameEl.textContent = firstName;
+      if (dropdownNameEl) dropdownNameEl.textContent = currentUser.nome || 'Usuário';
       if (roleEl) {
         roleEl.textContent = currentUser.perfil;
         roleEl.className = `header-user-role role-${currentUser.perfil.toLowerCase()}`;
+      }
+      if (dropdownRoleEl) {
+        dropdownRoleEl.textContent = currentUser.perfil;
       }
 
       // Exibir link de gerenciamento para ADMIN
@@ -234,6 +241,8 @@ const AuthModule = (() => {
         window.App.updateAllUserAvatars();
       }
     } else {
+      if (nameEl) nameEl.textContent = 'Usuário';
+      if (dropdownNameEl) dropdownNameEl.textContent = 'Usuário';
       // Ao fazer logout, resetar avatar para neutro
       if (headerAvatarWrapper) {
         headerAvatarWrapper.innerHTML = `
