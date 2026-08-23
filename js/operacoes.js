@@ -171,6 +171,9 @@ const OperacoesModule = (() => {
       });
     }
 
+    // 6.1. Copiar todos os telefones ao clicar no cabeçalho TELEFONE
+    document.getElementById('th-ops-copiar-telefones')?.addEventListener('click', copiarTodosTelefonesOperacao);
+
     // 7. Modal de Importação de Equipe
     document.getElementById('btn-analisar-equipe-op')?.addEventListener('click', handleAnalisarEquipe);
     document.getElementById('btn-confirmar-importar-equipe-op')?.addEventListener('click', handleConfirmarImportarEquipe);
@@ -979,7 +982,10 @@ const OperacoesModule = (() => {
   // 5.1. MODAL: EDITAR OPERAÇÃO
   // ─────────────────────────────────────────────────────────────────────────────
   function abrirModalEditarOperacao() {
-    if (!state.operacaoAtiva) return;
+    if (!state.operacaoAtiva) {
+      showToast('Nenhuma operação ativa selecionada para editar', 'error');
+      return;
+    }
 
     const modal = document.getElementById('modal-editar-operacao');
     const lojaInput = document.getElementById('edit-op-loja');
@@ -989,20 +995,36 @@ const OperacoesModule = (() => {
     const cidadeInput = document.getElementById('edit-op-cidade');
     const estadoInput = document.getElementById('edit-op-estado');
 
-    const dt = state.operacaoAtiva.data ? new Date(state.operacaoAtiva.data).toISOString().split('T')[0] : '';
+    const op = state.operacaoAtiva;
+    const nomeLoja = typeof op.loja === 'string' ? op.loja : (op.loja?.nome || op.lojaNome || '');
+    const cidade = op.cidade || (op.loja && typeof op.loja === 'object' ? op.loja.cidade : '') || 'Belo Horizonte';
+    const estado = op.estado || (op.loja && typeof op.loja === 'object' ? op.loja.estado : '') || 'MG';
+    const piv = op.pivNecessario || op.piv || (op.metricas ? op.metricas.pivNecessario : 5) || 5;
+    const horario = op.horario || '18:30';
 
-    if (lojaInput) lojaInput.value = state.operacaoAtiva.loja || '';
+    let dt = '';
+    if (op.data) {
+      try {
+        dt = new Date(op.data).toISOString().split('T')[0];
+      } catch {
+        dt = String(op.data).split('T')[0];
+      }
+    }
+
+    if (lojaInput) lojaInput.value = nomeLoja;
     if (dataInput) dataInput.value = dt;
-    if (horarioInput) horarioInput.value = state.operacaoAtiva.horario || '18:30';
-    if (pivInput) pivInput.value = state.operacaoAtiva.pivNecessario || 5;
-    if (cidadeInput) cidadeInput.value = state.operacaoAtiva.cidade || '';
-    if (estadoInput) estadoInput.value = state.operacaoAtiva.estado || '';
+    if (horarioInput) horarioInput.value = horario;
+    if (pivInput) pivInput.value = piv;
+    if (cidadeInput) cidadeInput.value = cidade;
+    if (estadoInput) estadoInput.value = estado;
 
-    if (modal) modal.classList.add('open');
+    if (modal) {
+      modal.classList.add('open', 'active');
+    }
   }
 
   async function handleEditarOperacao(e) {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!state.operacaoAtiva) return;
 
     const btnSubmit = document.getElementById('btn-submit-editar-op');
@@ -1021,13 +1043,13 @@ const OperacoesModule = (() => {
     const estado = estadoInput?.value.trim().toUpperCase() || 'MG';
 
     if (!loja || !data || !horario) {
-      showToast('Preencha os campos obrigatórios', 'error');
+      showToast('Preencha os campos obrigatórios (Nome da Loja, Data e Horário)', 'error');
       return;
     }
 
     if (btnSubmit) {
       btnSubmit.disabled = true;
-      btnSubmit.innerHTML = '<span class="btn-spinner"></span> Salvando...';
+      btnSubmit.innerHTML = '<span class="btn-spinner"></span> Salvando alterações...';
     }
 
     try {
@@ -1042,7 +1064,7 @@ const OperacoesModule = (() => {
       });
 
       fecharTodosModaisOps();
-      showToast('Operação atualizada com sucesso!');
+      showToast('✓ Operação atualizada com sucesso!');
       await carregarDetalhesOperacao(opId);
     } catch (err) {
       console.error('Erro ao editar operação:', err);
@@ -1165,6 +1187,60 @@ const OperacoesModule = (() => {
       console.error('Erro ao editar telefone:', err);
       showToast('Erro ao salvar telefone', 'error');
     }
+  }
+
+  function copiarTodosTelefonesOperacao() {
+    if (!state.operacaoAtiva || !state.operacaoAtiva.membros) {
+      showToast('Nenhuma operação ativa para copiar telefones', 'error');
+      return;
+    }
+
+    const membros = state.operacaoAtiva.membros || [];
+    const telefones = [];
+    const seen = new Set();
+
+    for (const m of membros) {
+      const tel = (m.telefone || '').trim();
+      if (tel && !seen.has(tel)) {
+        seen.add(tel);
+        telefones.push(tel);
+      }
+    }
+
+    if (telefones.length === 0) {
+      showToast('Nenhum telefone cadastrado nesta operação', 'error');
+      return;
+    }
+
+    const texto = telefones.join('\n');
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(texto).then(() => {
+        showToast('✓ Telefones copiados!');
+      }).catch(() => {
+        fallbackCopyText(texto, '✓ Telefones copiados!');
+      });
+    } else {
+      fallbackCopyText(texto, '✓ Telefones copiados!');
+    }
+  }
+
+  function fallbackCopyText(texto, msg) {
+    const ta = document.createElement('textarea');
+    ta.value = texto;
+    ta.style.position = 'fixed';
+    ta.style.top = '-9999px';
+    ta.style.left = '-9999px';
+    ta.setAttribute('readonly', '');
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      showToast(msg);
+    } catch {
+      showToast('Erro ao copiar para a área de transferência', 'error');
+    }
+    document.body.removeChild(ta);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1503,6 +1579,7 @@ const OperacoesModule = (() => {
     abrirModalEditarOperacao,
     abrirModalEditarMembro,
     editarTelefoneInline,
+    copiarTodosTelefonesOperacao,
     abrirDossieColaborador,
     alterarStatusMembro,
     removerColaboradorOperacao,

@@ -244,7 +244,16 @@ function parseDataOperacao(dataStr) {
   if (!dataStr) return new Date();
   if (dataStr instanceof Date) return dataStr;
 
-  const brMatch = dataStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const str = String(dataStr).trim();
+  const isoMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) {
+    const y = parseInt(isoMatch[1], 10);
+    const m = parseInt(isoMatch[2], 10) - 1;
+    const d = parseInt(isoMatch[3], 10);
+    return new Date(Date.UTC(y, m, d, 12, 0, 0));
+  }
+
+  const brMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if (brMatch) {
     const d = parseInt(brMatch[1], 10);
     const m = parseInt(brMatch[2], 10) - 1;
@@ -252,7 +261,7 @@ function parseDataOperacao(dataStr) {
     return new Date(Date.UTC(y, m, d, 12, 0, 0));
   }
 
-  const dt = new Date(dataStr);
+  const dt = new Date(str);
   return isNaN(dt.getTime()) ? new Date() : dt;
 }
 

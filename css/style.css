@@ -5427,3 +5427,13 @@ input::-ms-clear {
   background: var(--bg-hover, rgba(14, 165, 233, 0.12));
   color: var(--primary);
 }
+
+.th-clickable-copy {
+  cursor: pointer !important;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.th-clickable-copy:hover {
+  color: var(--primary) !important;
+  background: var(--bg-hover, rgba(14, 165, 233, 0.12)) !important;
+}

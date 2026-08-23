@@ -623,7 +623,7 @@
               <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                 <h1 id="painel-op-title" class="painel-op-h1">Loja</h1>
                 <span id="painel-op-status-badge" class="ops-status-badge aberta">Em andamento</span>
-                <button type="button" id="btn-editar-dados-op" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:5px; padding:3px 8px; font-size:0.78rem;" title="Editar dados da operação">
+                <button type="button" id="btn-editar-dados-op" class="btn btn-secondary btn-sm" onclick="OperacoesModule.abrirModalEditarOperacao()" style="display:inline-flex; align-items:center; gap:5px; padding:3px 8px; font-size:0.78rem;" title="Editar dados da operação">
                   <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -631,7 +631,7 @@
                   <span>Editar</span>
                 </button>
               </div>
-              <div id="painel-op-sub" class="painel-op-subinfo" style="cursor:pointer;" title="Clique para editar dados da operação">
+              <div id="painel-op-sub" class="painel-op-subinfo" onclick="OperacoesModule.abrirModalEditarOperacao()" style="cursor:pointer;" title="Clique para editar dados da operação">
                 Data • Horário • Localização
               </div>
             </div>
@@ -739,7 +739,15 @@
                   <th>Código</th>
                   <th>Nome do Colaborador</th>
                   <th>Cidade</th>
-                  <th>Telefone / WhatsApp</th>
+                  <th id="th-ops-copiar-telefones" class="th-clickable-copy" title="Clique para copiar todos os telefones da operação" style="cursor:pointer; user-select:none;">
+                    <span style="display:inline-flex; align-items:center; gap:5px;">
+                      TELEFONE
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="opacity:0.85;">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                      </svg>
+                    </span>
+                  </th>
                   <th>Status</th>
                   <th style="min-width:260px;">Ações Rápidas</th>
                   <th style="width:40px;"></th>
