@@ -122,6 +122,18 @@ const OperacoesModule = (() => {
 
     document.getElementById('form-nova-operacao')?.addEventListener('submit', handleCriarOperacao);
 
+    // 4.1. Edição de Operação
+    document.getElementById('btn-editar-dados-op')?.addEventListener('click', () => {
+      abrirModalEditarOperacao();
+    });
+    document.getElementById('painel-op-sub')?.addEventListener('click', () => {
+      abrirModalEditarOperacao();
+    });
+    document.getElementById('form-editar-operacao')?.addEventListener('submit', handleEditarOperacao);
+
+    // 4.2. Edição de Colaborador
+    document.getElementById('form-editar-membro-op')?.addEventListener('submit', handleEditarMembro);
+
     // 5. Botões do Painel da Operação
     document.getElementById('btn-voltar-operacoes-dia')?.addEventListener('click', () => {
       fecharPainelOperacao();
@@ -176,7 +188,16 @@ const OperacoesModule = (() => {
       btn.addEventListener('click', fecharTodosModaisOps);
     });
 
-    ['modal-nova-operacao', 'modal-importar-equipe-op', 'modal-finalizar-operacao', 'modal-colaborador-dossie'].forEach(id => {
+    const modalIds = [
+      'modal-nova-operacao',
+      'modal-editar-operacao',
+      'modal-editar-membro-op',
+      'modal-importar-equipe-op',
+      'modal-finalizar-operacao',
+      'modal-colaborador-dossie'
+    ];
+
+    modalIds.forEach(id => {
       const el = document.getElementById(id);
       if (el) {
         el.addEventListener('click', (e) => {
@@ -187,7 +208,15 @@ const OperacoesModule = (() => {
   }
 
   function fecharTodosModaisOps() {
-    ['modal-nova-operacao', 'modal-importar-equipe-op', 'modal-finalizar-operacao', 'modal-colaborador-dossie'].forEach(id => {
+    const modalIds = [
+      'modal-nova-operacao',
+      'modal-editar-operacao',
+      'modal-editar-membro-op',
+      'modal-importar-equipe-op',
+      'modal-finalizar-operacao',
+      'modal-colaborador-dossie'
+    ];
+    modalIds.forEach(id => {
       document.getElementById(id)?.classList.remove('open', 'active');
     });
   }
@@ -656,22 +685,34 @@ const OperacoesModule = (() => {
         <tr data-membro-id="${m.id}" data-usuario-id="${m.usuarioId}">
           <td class="text-muted" style="font-size:0.78rem;">${idx + 1}</td>
           <td><span class="ops-role-pill">${m.cargo || 'Operador'}</span></td>
-          <td><code class="ops-code-tag">${m.codigo || m.matricula || '—'}</code></td>
           <td>
-            <button type="button" class="ops-colab-link" onclick="OperacoesModule.abrirDossieColaborador('${m.codigo || m.matricula || m.usuarioId}')" title="Ver histórico completo">
-              ${m.nome}
+            <code class="ops-code-tag" onclick="OperacoesModule.abrirModalEditarMembro('${m.usuarioId}')" style="cursor:pointer;" title="Clique para editar matrícula/dados">
+              ${m.matricula || m.codigo || '—'}
+            </code>
+          </td>
+          <td>
+            <button type="button" class="ops-colab-link" onclick="OperacoesModule.abrirModalEditarMembro('${m.usuarioId}')" title="Clique para editar integrante">
+              <strong>${m.nome}</strong>
             </button>
           </td>
-          <td><span class="text-muted" style="font-size:0.82rem;">${m.cidade || '—'}</span></td>
           <td>
-            ${zapLink ? `
-              <a href="${zapLink}" target="_blank" rel="noopener noreferrer" class="ops-zap-btn" title="Conversar no WhatsApp">
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
-                  <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.63.078-1.802-.408-1.498-.62-2.438-2.146-2.51-2.244-.07-.099-.606-.807-.606-1.54 0-.733.383-1.094.52-1.242.136-.148.298-.185.398-.185.099 0 .198.001.284.005.091.004.213-.034.333.255.124.298.423 1.034.46 1.109.037.075.062.162.012.261-.049.099-.074.161-.148.247-.074.086-.156.193-.223.259-.074.074-.151.155-.065.303.086.148.384.633.824 1.025.567.505 1.045.662 1.194.736.148.074.235.062.322-.037.086-.099.37-.432.469-.58.099-.148.198-.124.334-.074.136.049.865.408 1.014.482.148.074.247.111.284.173.037.062.037.359-.107.764z"/>
-                </svg>
-                <span>${m.telefone || '—'}</span>
-              </a>
-            ` : `<span class="text-muted" style="font-size:0.82rem;">${m.telefone || '—'}</span>`}
+            <span class="text-muted" onclick="OperacoesModule.abrirModalEditarMembro('${m.usuarioId}')" style="cursor:pointer; font-size:0.82rem;" title="Clique para editar cidade">
+              ${m.cidade || '—'}
+            </span>
+          </td>
+          <td>
+            <div style="display:inline-flex; align-items:center; gap:6px;">
+              <span class="ops-editable-tel" onclick="OperacoesModule.editarTelefoneInline('${m.usuarioId}', '${m.telefone || ''}')" title="Clique para editar o telefone">
+                ${m.telefone || '<span class="text-muted" style="font-size:0.8rem;">(sem telefone)</span>'}
+              </span>
+              ${zapLink ? `
+                <a href="${zapLink}" target="_blank" rel="noopener noreferrer" class="ops-zap-btn" title="Conversar no WhatsApp">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+                    <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.63.078-1.802-.408-1.498-.62-2.438-2.146-2.51-2.244-.07-.099-.606-.807-.606-1.54 0-.733.383-1.094.52-1.242.136-.148.298-.185.398-.185.099 0 .198.001.284.005.091.004.213-.034.333.255.124.298.423 1.034.46 1.109.037.075.062.162.012.261-.049.099-.074.161-.148.247-.074.086-.156.193-.223.259-.074.074-.151.155-.065.303.086.148.384.633.824 1.025.567.505 1.045.662 1.194.736.148.074.235.062.322-.037.086-.099.37-.432.469-.58.099-.148.198-.124.334-.074.136.049.865.408 1.014.482.148.074.247.111.284.173.037.062.037.359-.107.764z"/>
+                  </svg>
+                </a>
+              ` : ''}
+            </div>
           </td>
           <td>
             <span class="ops-status-tag ${statusClass}">${statusLabel}</span>
@@ -699,9 +740,14 @@ const OperacoesModule = (() => {
             </div>
           </td>
           <td class="text-right">
-            <button type="button" class="btn-icon-del-colab" onclick="OperacoesModule.removerColaboradorOperacao('${m.id}', '${m.nome}')" title="Remover da operação">
-              ✕
-            </button>
+            <div style="display:inline-flex; align-items:center; gap:4px;">
+              <button type="button" class="btn-card-mini" onclick="OperacoesModule.abrirModalEditarMembro('${m.usuarioId}')" title="Editar dados do integrante" style="padding:2px 5px; font-size:0.75rem;">
+                ✏️
+              </button>
+              <button type="button" class="btn-icon-del-colab" onclick="OperacoesModule.removerColaboradorOperacao('${m.id}', '${m.nome}')" title="Remover da operação">
+                ✕
+              </button>
+            </div>
           </td>
         </tr>
       `;
@@ -877,8 +923,6 @@ const OperacoesModule = (() => {
     const pivInput = document.getElementById('novo-op-piv');
     const cidadeInput = document.getElementById('novo-op-cidade');
     const estadoInput = document.getElementById('novo-op-estado');
-    const enderecoInput = document.getElementById('novo-op-endereco');
-    const obsInput = document.getElementById('novo-op-observacoes');
 
     const loja = lojaInput?.value.trim();
     const data = dataInput?.value;
@@ -886,8 +930,6 @@ const OperacoesModule = (() => {
     const piv = parseInt(pivInput?.value, 10) || 5;
     const cidade = cidadeInput?.value.trim() || 'Belo Horizonte';
     const estado = estadoInput?.value.trim().toUpperCase() || 'MG';
-    const endereco = enderecoInput?.value.trim() || '';
-    const observacoes = obsInput?.value.trim() || '';
 
     if (!loja || !data || !horario) {
       showToast('Preencha os campos obrigatórios da operação (Loja, Data e Horário)', 'error');
@@ -896,7 +938,7 @@ const OperacoesModule = (() => {
 
     if (btnSubmit) {
       btnSubmit.disabled = true;
-      btnSubmit.textContent = 'Criando Operação...';
+      btnSubmit.innerHTML = '<span class="btn-spinner"></span> Criando operação...';
     }
 
     try {
@@ -907,32 +949,221 @@ const OperacoesModule = (() => {
         pivNecessario: piv,
         cidade,
         estado,
-        endereco,
-        observacoes,
       });
 
       // Limpar formulário
       if (lojaInput) lojaInput.value = '';
-      if (enderecoInput) enderecoInput.value = '';
-      if (obsInput) obsInput.value = '';
 
       fecharTodosModaisOps();
-      showToast(`Operação ${loja} criada com sucesso!`);
+      showToast(`Operação ${loja} criada com sucesso! Cole a equipe para continuar.`);
 
-      // Redireciona diretamente para o painel da operação criada
+      // Redireciona diretamente para o painel da operação criada e abre modal de importar equipe
       if (res && res.operacao && res.operacao.id) {
         await abrirOperacao(res.operacao.id);
+        abrirModalImportarEquipe();
       } else {
         await carregarListaOperacoes();
       }
     } catch (err) {
       console.error('Erro ao criar operação:', err);
-      showToast(err.message || 'Erro ao criar operação no banco', 'error');
+      showToast(err.message || 'Erro ao criar operação', 'error');
     } finally {
       if (btnSubmit) {
         btnSubmit.disabled = false;
-        btnSubmit.textContent = 'Criar Operação';
+        btnSubmit.innerHTML = 'Criar Operação';
       }
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 5.1. MODAL: EDITAR OPERAÇÃO
+  // ─────────────────────────────────────────────────────────────────────────────
+  function abrirModalEditarOperacao() {
+    if (!state.operacaoAtiva) return;
+
+    const modal = document.getElementById('modal-editar-operacao');
+    const lojaInput = document.getElementById('edit-op-loja');
+    const dataInput = document.getElementById('edit-op-data');
+    const horarioInput = document.getElementById('edit-op-horario');
+    const pivInput = document.getElementById('edit-op-piv');
+    const cidadeInput = document.getElementById('edit-op-cidade');
+    const estadoInput = document.getElementById('edit-op-estado');
+
+    const dt = state.operacaoAtiva.data ? new Date(state.operacaoAtiva.data).toISOString().split('T')[0] : '';
+
+    if (lojaInput) lojaInput.value = state.operacaoAtiva.loja || '';
+    if (dataInput) dataInput.value = dt;
+    if (horarioInput) horarioInput.value = state.operacaoAtiva.horario || '18:30';
+    if (pivInput) pivInput.value = state.operacaoAtiva.pivNecessario || 5;
+    if (cidadeInput) cidadeInput.value = state.operacaoAtiva.cidade || '';
+    if (estadoInput) estadoInput.value = state.operacaoAtiva.estado || '';
+
+    if (modal) modal.classList.add('open');
+  }
+
+  async function handleEditarOperacao(e) {
+    e.preventDefault();
+    if (!state.operacaoAtiva) return;
+
+    const btnSubmit = document.getElementById('btn-submit-editar-op');
+    const lojaInput = document.getElementById('edit-op-loja');
+    const dataInput = document.getElementById('edit-op-data');
+    const horarioInput = document.getElementById('edit-op-horario');
+    const pivInput = document.getElementById('edit-op-piv');
+    const cidadeInput = document.getElementById('edit-op-cidade');
+    const estadoInput = document.getElementById('edit-op-estado');
+
+    const loja = lojaInput?.value.trim();
+    const data = dataInput?.value;
+    const horario = horarioInput?.value;
+    const piv = parseInt(pivInput?.value, 10) || 5;
+    const cidade = cidadeInput?.value.trim() || 'Belo Horizonte';
+    const estado = estadoInput?.value.trim().toUpperCase() || 'MG';
+
+    if (!loja || !data || !horario) {
+      showToast('Preencha os campos obrigatórios', 'error');
+      return;
+    }
+
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = '<span class="btn-spinner"></span> Salvando...';
+    }
+
+    try {
+      const opId = state.operacaoAtiva.id;
+      await RebussAPI.operacoes.update(opId, {
+        lojaNome: loja,
+        data,
+        horario,
+        pivNecessario: piv,
+        cidade,
+        estado,
+      });
+
+      fecharTodosModaisOps();
+      showToast('Operação atualizada com sucesso!');
+      await carregarDetalhesOperacao(opId);
+    } catch (err) {
+      console.error('Erro ao editar operação:', err);
+      showToast(err.message || 'Erro ao atualizar operação', 'error');
+    } finally {
+      if (btnSubmit) {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = 'Salvar Alterações';
+      }
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 5.2. EDIÇÃO DE COLABORADORES
+  // ─────────────────────────────────────────────────────────────────────────────
+  function abrirModalEditarMembro(usuarioId) {
+    if (!state.operacaoAtiva || !usuarioId) return;
+
+    const membro = (state.operacaoAtiva.membros || []).find(m => m.usuarioId === usuarioId);
+    if (!membro) return;
+
+    const modal = document.getElementById('modal-editar-membro-op');
+    const idInput = document.getElementById('edit-membro-usuario-id');
+    const nomeInput = document.getElementById('edit-membro-nome');
+    const matInput = document.getElementById('edit-membro-matricula');
+    const cidInput = document.getElementById('edit-membro-cidade');
+    const telInput = document.getElementById('edit-membro-telefone');
+
+    if (idInput) idInput.value = usuarioId;
+    if (nomeInput) nomeInput.value = membro.nome || '';
+    if (matInput) matInput.value = membro.matricula || membro.codigo || '';
+    if (cidInput) cidInput.value = membro.cidade || '';
+    if (telInput) telInput.value = membro.telefone || '';
+
+    if (modal) modal.classList.add('open');
+  }
+
+  async function handleEditarMembro(e) {
+    e.preventDefault();
+    if (!state.operacaoAtiva) return;
+
+    const idInput = document.getElementById('edit-membro-usuario-id');
+    const nomeInput = document.getElementById('edit-membro-nome');
+    const matInput = document.getElementById('edit-membro-matricula');
+    const cidInput = document.getElementById('edit-membro-cidade');
+    const telInput = document.getElementById('edit-membro-telefone');
+    const btnSubmit = document.getElementById('btn-submit-editar-membro-op');
+
+    const usuarioId = idInput?.value;
+    const nome = nomeInput?.value.trim();
+    const matricula = matInput?.value.trim();
+    const cidade = cidInput?.value.trim();
+    const telefone = telInput?.value.trim();
+
+    if (!usuarioId || !nome) {
+      showToast('O nome do colaborador é obrigatório', 'error');
+      return;
+    }
+
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = '<span class="btn-spinner"></span> Salvando...';
+    }
+
+    try {
+      const opId = state.operacaoAtiva.id;
+      await RebussAPI.operacoes.updateMembro(opId, usuarioId, {
+        nome,
+        matricula,
+        cidade,
+        telefone,
+      });
+
+      // Atualiza no estado local
+      const membro = (state.operacaoAtiva.membros || []).find(m => m.usuarioId === usuarioId);
+      if (membro) {
+        membro.nome = nome;
+        membro.matricula = matricula;
+        membro.codigo = matricula;
+        membro.cidade = cidade;
+        membro.telefone = telefone;
+      }
+
+      fecharTodosModaisOps();
+      filtrarERenderizarTabelaEquipe();
+      showToast('Dados do colaborador atualizados com sucesso!');
+    } catch (err) {
+      console.error('Erro ao atualizar colaborador:', err);
+      showToast(err.message || 'Erro ao atualizar dados', 'error');
+    } finally {
+      if (btnSubmit) {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = 'Salvar Alterações';
+      }
+    }
+  }
+
+  async function editarTelefoneInline(usuarioId, telAtual) {
+    if (!state.operacaoAtiva || !usuarioId) return;
+
+    const membro = (state.operacaoAtiva.membros || []).find(m => m.usuarioId === usuarioId);
+    const nome = membro ? membro.nome : 'colaborador';
+
+    const novoTel = prompt(`Editar telefone de ${nome}:`, telAtual || '');
+    if (novoTel === null) return; // cancelado pelo usuário
+
+    try {
+      const opId = state.operacaoAtiva.id;
+      await RebussAPI.operacoes.updateMembro(opId, usuarioId, {
+        telefone: novoTel.trim(),
+      });
+
+      if (membro) {
+        membro.telefone = novoTel.trim();
+      }
+
+      filtrarERenderizarTabelaEquipe();
+      showToast('Telefone atualizado com sucesso!');
+    } catch (err) {
+      console.error('Erro ao editar telefone:', err);
+      showToast('Erro ao salvar telefone', 'error');
     }
   }
 
@@ -1269,6 +1500,9 @@ const OperacoesModule = (() => {
     abrirOperacao,
     fecharPainelOperacao,
     abrirModalNovaOperacao,
+    abrirModalEditarOperacao,
+    abrirModalEditarMembro,
+    editarTelefoneInline,
     abrirDossieColaborador,
     alterarStatusMembro,
     removerColaboradorOperacao,

@@ -623,8 +623,15 @@
               <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                 <h1 id="painel-op-title" class="painel-op-h1">Loja</h1>
                 <span id="painel-op-status-badge" class="ops-status-badge aberta">Em andamento</span>
+                <button type="button" id="btn-editar-dados-op" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:5px; padding:3px 8px; font-size:0.78rem;" title="Editar dados da operação">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                  <span>Editar</span>
+                </button>
               </div>
-              <div id="painel-op-sub" class="painel-op-subinfo">
+              <div id="painel-op-sub" class="painel-op-subinfo" style="cursor:pointer;" title="Clique para editar dados da operação">
                 Data • Horário • Localização
               </div>
             </div>
@@ -2149,21 +2156,114 @@ Exemplo:
               <input type="text" id="novo-op-estado" value="MG" maxlength="2" style="text-transform:uppercase;" required>
             </div>
           </div>
-
-          <div class="form-group">
-            <label for="novo-op-endereco">Endereço da Loja <span class="text-muted">(Opcional)</span></label>
-            <input type="text" id="novo-op-endereco" placeholder="Ex: Av. Afonso Pena, 1234 - Centro">
-          </div>
-
-          <div class="form-group">
-            <label for="novo-op-observacoes">Observações Iniciais <span class="text-muted">(Opcional)</span></label>
-            <textarea id="novo-op-observacoes" rows="2" placeholder="Ex: Ponto de encontro, orientações de transporte..."></textarea>
-          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary modal-ops-close">Cancelar</button>
           <button type="submit" id="btn-submit-nova-op" class="btn btn-primary">
             Criar Operação
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: EDITAR DADOS DA OPERAÇÃO
+       ========================================================================== -->
+  <div id="modal-editar-operacao" class="modal-overlay">
+    <div class="modal-box" style="max-width: 580px;">
+      <div class="modal-header">
+        <div>
+          <h3>✏️ Editar Operação</h3>
+          <span class="text-muted" style="font-size:0.85rem;">Altere os dados gerais da operação</span>
+        </div>
+        <button class="btn-card-mini modal-ops-close" type="button">✕</button>
+      </div>
+      <form id="form-editar-operacao">
+        <div class="modal-body">
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="edit-op-loja">Nome da Loja *</label>
+              <input type="text" id="edit-op-loja" placeholder="Ex: Americanas 939" required>
+            </div>
+            <div class="form-group">
+              <label for="edit-op-data">Data *</label>
+              <input type="date" id="edit-op-data" required>
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="edit-op-horario">Horário *</label>
+              <input type="time" id="edit-op-horario" required>
+            </div>
+            <div class="form-group">
+              <label for="edit-op-piv">PIV Necessário *</label>
+              <input type="number" id="edit-op-piv" min="1" required>
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="edit-op-cidade">Cidade *</label>
+              <input type="text" id="edit-op-cidade" required>
+            </div>
+            <div class="form-group">
+              <label for="edit-op-estado">Estado (UF) *</label>
+              <input type="text" id="edit-op-estado" maxlength="2" style="text-transform:uppercase;" required>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-ops-close">Cancelar</button>
+          <button type="submit" id="btn-submit-editar-op" class="btn btn-primary">
+            Salvar Alterações
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: EDITAR COLABORADOR DA OPERAÇÃO
+       ========================================================================== -->
+  <div id="modal-editar-membro-op" class="modal-overlay">
+    <div class="modal-box" style="max-width: 500px;">
+      <div class="modal-header">
+        <div>
+          <h3>✏️ Editar Integrante</h3>
+          <span class="text-muted" style="font-size:0.85rem;">Atualize os dados do colaborador</span>
+        </div>
+        <button class="btn-card-mini modal-ops-close" type="button">✕</button>
+      </div>
+      <form id="form-editar-membro-op">
+        <input type="hidden" id="edit-membro-usuario-id">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="edit-membro-nome">Nome Completo *</label>
+            <input type="text" id="edit-membro-nome" required autocomplete="off">
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="edit-membro-matricula">Matrícula</label>
+              <input type="text" id="edit-membro-matricula" placeholder="Ex: 109186" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label for="edit-membro-cidade">Cidade</label>
+              <input type="text" id="edit-membro-cidade" placeholder="Ex: Cabo Frio" autocomplete="off">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="edit-membro-telefone">Telefone / WhatsApp</label>
+            <input type="text" id="edit-membro-telefone" placeholder="Ex: (22) 98118-7912" autocomplete="off">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-ops-close">Cancelar</button>
+          <button type="submit" id="btn-submit-editar-membro-op" class="btn btn-primary">
+            Salvar Alterações
           </button>
         </div>
       </form>

@@ -299,6 +299,10 @@ var RebussAPI = (function () {
       method: 'PUT',
       body: JSON.stringify(dados),
     }),
+    updateMembro: (id, usuarioId, dados) => request(`/operacoes/${encodeURIComponent(id)}/membros/${encodeURIComponent(usuarioId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(dados),
+    }),
     updateStatus: (id, usuarioId, status) => request(`/operacoes/${encodeURIComponent(id)}/membros/${encodeURIComponent(usuarioId)}/status`, {
       method: 'PUT',
       body: JSON.stringify({ status }),

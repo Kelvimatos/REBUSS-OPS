@@ -966,6 +966,138 @@ router.post('/:id/importar-equipe', async (req, res) => {
   }
 });
 
+// PUT /api/operacoes/:id (Editar dados da Operação: Loja, Data, Horário, PIV, Cidade, Estado)
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { lojaNome, data, horario, pivNecessario, cidade, estado } = req.body;
+
+    const op = await prisma.escala.findFirst({
+      where: { id, usuarioSistemaId: req.userSistema.id },
+      include: { loja: true },
+    });
+
+    if (!op) return res.status(404).json({ erro: 'Operação não encontrada ou não pertence ao seu usuário' });
+
+    const updateEscalaData = {};
+    if (data) {
+      updateEscalaData.data = parseDataOperacao(data);
+    }
+    if (horario) {
+      updateEscalaData.horario = horario.trim();
+    }
+    if (pivNecessario !== undefined) {
+      const piv = parseInt(pivNecessario, 10);
+      if (!isNaN(piv)) updateEscalaData.pivNecessario = piv;
+    }
+
+    // Atualizar dados da Loja se informados
+    if (lojaNome || cidade || estado) {
+      const updateLojaData = {};
+      if (lojaNome) updateLojaData.nome = lojaNome.trim();
+      if (cidade) updateLojaData.cidade = cidade.trim();
+      if (estado) updateLojaData.estado = estado.trim().toUpperCase();
+
+      await prisma.loja.update({
+        where: { id: op.lojaId },
+        data: updateLojaData,
+      });
+    }
+
+    const escalaAtualizada = await prisma.escala.update({
+      where: { id },
+      data: updateEscalaData,
+      include: {
+        loja: true,
+        membros: { include: { usuario: true } },
+      },
+    });
+
+    await prisma.statusLog.create({
+      data: {
+        escalaId: id,
+        tipo: 'STATUS_CHANGE',
+        descricao: 'Dados da operação atualizados.',
+      },
+    });
+
+    res.json({
+      sucesso: true,
+      mensagem: 'Operação atualizada com sucesso!',
+      operacao: escalaAtualizada,
+    });
+  } catch (err) {
+    console.error('PUT /api/operacoes/:id:', err);
+    res.status(500).json({ erro: 'Erro ao atualizar operação', detalhe: err.message });
+  }
+});
+
+// PUT /api/operacoes/:id/membros/:usuarioId (Editar dados do Colaborador: Nome, Matrícula, Cidade, Telefone)
+router.put('/:id/membros/:usuarioId', async (req, res) => {
+  try {
+    const { id: escalaId, usuarioId } = req.params;
+    const { nome, matricula, cidade, telefone, cargo } = req.body;
+
+    const op = await prisma.escala.findFirst({
+      where: { id: escalaId, usuarioSistemaId: req.userSistema.id },
+    });
+
+    if (!op) return res.status(404).json({ erro: 'Operação não encontrada ou não pertence ao seu usuário' });
+
+    const membro = await prisma.escalaMembro.findUnique({
+      where: { escalaId_usuarioId: { escalaId, usuarioId } },
+      include: { usuario: true },
+    });
+
+    if (!membro) return res.status(404).json({ erro: 'Membro não encontrado nesta operação' });
+
+    // 1. Atualizar registro global do Usuario
+    const userUpdate = {};
+    if (nome && nome.trim()) userUpdate.nome = nome.trim();
+    if (matricula !== undefined) userUpdate.matricula = matricula ? String(matricula).trim() : null;
+    if (cidade !== undefined) userUpdate.cidade = cidade ? cidade.trim() : null;
+    if (telefone !== undefined) userUpdate.telefone = telefone ? telefone.trim() : null;
+
+    if (Object.keys(userUpdate).length > 0) {
+      await prisma.usuario.update({
+        where: { id: usuarioId },
+        data: userUpdate,
+      });
+    }
+
+    // 2. Atualizar registro local na EscalaMembro
+    const membroUpdate = {};
+    if (matricula !== undefined) membroUpdate.codigo = matricula ? String(matricula).trim() : null;
+    if (cidade !== undefined) membroUpdate.cidade = cidade ? cidade.trim() : null;
+    if (telefone !== undefined) membroUpdate.telefone = telefone ? telefone.trim() : null;
+    if (cargo && cargo.trim()) membroUpdate.cargo = cargo.trim();
+
+    const membroAtualizado = await prisma.escalaMembro.update({
+      where: { id: membro.id },
+      data: membroUpdate,
+      include: { usuario: true },
+    });
+
+    await prisma.statusLog.create({
+      data: {
+        escalaId,
+        usuarioId,
+        tipo: 'STATUS_CHANGE',
+        descricao: `Dados de ${membroAtualizado.usuario.nome} atualizados.`,
+      },
+    });
+
+    res.json({
+      sucesso: true,
+      mensagem: 'Colaborador atualizado com sucesso!',
+      membro: membroAtualizado,
+    });
+  } catch (err) {
+    console.error('PUT /api/operacoes/:id/membros/:usuarioId:', err);
+    res.status(500).json({ erro: 'Erro ao atualizar colaborador', detalhe: err.message });
+  }
+});
+
 // PUT /api/operacoes/:id/membros/:usuarioId/status
 router.put('/:id/membros/:usuarioId/status', async (req, res) => {
   try {
