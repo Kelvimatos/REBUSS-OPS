@@ -162,6 +162,36 @@ const AdminModule = (() => {
     }
   }
 
+  async function resetDadosOperacionais() {
+    const confirmacao1 = confirm('⚠️ ATENÇÃO: Esta ação irá APAGAR TODAS AS LOJAS, ESCALAS, MEMBROS, OCORRÊNCIAS E HISTÓRICOS.\n\nUsuários de acesso, equipes e colaboradores cadastrados serão 100% PRESERVADOS.\n\nDeseja continuar?');
+    if (!confirmacao1) return;
+
+    const confirmacao2 = prompt('Digite "ZERAR" para confirmar a exclusão de todas as operações e lojas:');
+    if (confirmacao2 !== 'ZERAR') {
+      alert('Operação cancelada. A palavra digitada não confere.');
+      return;
+    }
+
+    try {
+      if (window.App && App.showToast) {
+        App.showToast('Zerando dados operacionais...', '⏳');
+      }
+      const resp = await RebussAPI.admin.resetDadosOperacionais();
+      alert('✅ ' + (resp.mensagem || 'Dados operacionais e lojas zerados com sucesso!'));
+      if (window.App && App.showToast) {
+        App.showToast('Lojas e escalas zeradas!', '✓');
+      }
+      if (window.OperacoesModule && OperacoesModule.recarregar) {
+        OperacoesModule.recarregar();
+      }
+      if (window.DashboardModule && DashboardModule.recarregar) {
+        DashboardModule.recarregar();
+      }
+    } catch (err) {
+      alert('Erro ao zerar dados operacionais: ' + err.message);
+    }
+  }
+
   function escapeHtml(str) {
     if (!str) return '';
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -181,6 +211,7 @@ const AdminModule = (() => {
 
     if (roleFilter) roleFilter.addEventListener('change', loadUsuarios);
 
+    document.getElementById('btn-admin-reset-dados')?.addEventListener('click', resetDadosOperacionais);
     document.getElementById('btn-save-admin-edit-user')?.addEventListener('click', saveEditUser);
     document.getElementById('modal-admin-edit-user-close')?.addEventListener('click', () => {
       document.getElementById('modal-admin-edit-user')?.classList.remove('open');
@@ -199,7 +230,9 @@ const AdminModule = (() => {
     openEditModal,
     toggleUserStatus,
     deleteUser,
+    resetDadosOperacionais,
   };
 })();
 
 window.AdminModule = AdminModule;
+
