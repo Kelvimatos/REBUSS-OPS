@@ -6,6 +6,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>REBUSS OPS • Central de Ferramentas</title>
 
+  <!-- Prevenção Imediata de FOUC e Detecção de Tema Síncrona (60 FPS Ready) -->
+  <script>
+    (function() {
+      try {
+        var t = localStorage.getItem('rebuss_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    })();
+  </script>
+
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="assets/favicon.png">
   <link rel="shortcut icon" type="image/png" href="assets/favicon.png">
@@ -21,13 +31,30 @@
     rel="stylesheet">
 
   <!-- Estilos Gerais Limpos e Sóbrios -->
-  <link rel="stylesheet" href="css/style.css?v=4.1.0">
+  <link rel="stylesheet" href="css/style.css?v=4.2.0">
 
   <!-- Core API Client -->
-  <script src="js/api.js?v=4.1.0"></script>
+  <script src="js/api.js?v=4.2.0"></script>
 </head>
 
 <body>
+  <!-- ==========================================================================
+       PRELOADER DE ALTA PERFORMANCE (Zero-FOUC & 60 FPS Reveal)
+       ========================================================================== -->
+  <div id="rebuss-preloader" class="rebuss-preloader">
+    <div class="preloader-card">
+      <div class="preloader-icon-wrap">
+        <img src="assets/logo.png" alt="REBUSS OPS" class="preloader-logo" width="48" height="48">
+        <div class="preloader-ring"></div>
+      </div>
+      <div class="preloader-brand-title">REBUSS OPS</div>
+      <div class="preloader-status">Carregando central operacional...</div>
+      <div class="preloader-track">
+        <div class="preloader-bar"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Canvas de Confetes (Disparado exclusivamente no 100% do Copiador) -->
   <canvas id="confetti-canvas" class="confetti-canvas"></canvas>
 
@@ -2456,17 +2483,17 @@ Exemplo:
   </div> <!-- Fim de #app-main-content -->
 
   <!-- Scripts Modulares -->
-  <script src="js/auth.js?v=4.1.0"></script>
-  <script src="js/operacoes.js?v=4.1.0"></script>
-  <script src="js/dashboard.js?v=4.1.0"></script>
-  <script src="js/admin.js?v=4.1.0"></script>
-  <script src="js/historico.js?v=4.1.0"></script>
-  <script src="js/importador.js?v=4.1.0"></script>
-  <script src="js/app.js?v=4.1.0"></script>
-  <script src="js/copiador.js?v=4.1.0"></script>
-  <script src="js/escalas.js?v=4.1.0"></script>
-  <script src="js/calendario.js?v=4.1.0"></script>
-  <script src="js/equipes.js?v=4.1.0"></script>
+  <script src="js/auth.js?v=4.2.0"></script>
+  <script src="js/operacoes.js?v=4.2.0"></script>
+  <script src="js/dashboard.js?v=4.2.0"></script>
+  <script src="js/admin.js?v=4.2.0"></script>
+  <script src="js/historico.js?v=4.2.0"></script>
+  <script src="js/importador.js?v=4.2.0"></script>
+  <script src="js/app.js?v=4.2.0"></script>
+  <script src="js/copiador.js?v=4.2.0"></script>
+  <script src="js/escalas.js?v=4.2.0"></script>
+  <script src="js/calendario.js?v=4.2.0"></script>
+  <script src="js/equipes.js?v=4.2.0"></script>
 </body>
 
 </html>

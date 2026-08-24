@@ -835,6 +835,9 @@ const App = (() => {
 
   function setTheme(theme, save = true) {
     currentTheme = theme;
+    
+    // Ativa transição de hardware suave (60 FPS) apenas durante a troca
+    document.documentElement.classList.add('theme-transitioning');
     document.documentElement.setAttribute('data-theme', theme);
     if (save) localStorage.setItem('rebuss_theme', theme);
 
@@ -849,6 +852,11 @@ const App = (() => {
         iconMoon.classList.remove('hide');
       }
     }
+
+    // Libera a GPU após a transição
+    setTimeout(() => {
+      document.documentElement.classList.remove('theme-transitioning');
+    }, 280);
   }
 
   function toggleTheme() {
@@ -1047,7 +1055,25 @@ const App = (() => {
         this.closest('.modal-overlay').classList.remove('open');
       });
     });
+
+    // Revela a aplicação com transição suave
+    dismissPreloader();
   }
+
+  function dismissPreloader() {
+    const preloader = document.getElementById('rebuss-preloader');
+    if (!preloader || preloader.classList.contains('preloader-hidden')) return;
+    requestAnimationFrame(() => {
+      preloader.classList.add('preloader-hidden');
+      setTimeout(() => {
+        preloader.style.display = 'none';
+      }, 400);
+    });
+  }
+
+  // Garante dismiss caso scripts externos atrasem
+  window.addEventListener('load', dismissPreloader);
+  setTimeout(dismissPreloader, 1500);
 
   document.addEventListener('DOMContentLoaded', init);
 
@@ -1059,6 +1085,7 @@ const App = (() => {
     getCurrentUser: () => currentUser,
     USERS,
     navigateTo,
-    updateAllUserAvatars
+    updateAllUserAvatars,
+    dismissPreloader
   };
 })();

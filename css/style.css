@@ -51,7 +51,7 @@
   --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  --transition: all 0.15s ease;
+  --transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 /* ==========================================================================
@@ -91,6 +91,20 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
+}
+
+/* ==========================================================================
+   Transição Fluida de Tema (60 FPS - Zero Repaint Thrashing)
+   ========================================================================== */
+html.theme-transitioning,
+html.theme-transitioning *,
+html.theme-transitioning *::before,
+html.theme-transitioning *::after {
+  transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  transition-delay: 0s !important;
 }
 
 /* ==========================================================================
@@ -571,7 +585,7 @@ img.photo-preview-img {
   font-size: 0.78rem;
   font-weight: 700;
   border: 1px solid transparent;
-  transition: all 0.15s ease;
+  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
@@ -769,7 +783,7 @@ img.photo-preview-img {
   border-bottom: 1px solid var(--border);
   padding: 12px 16px 16px;
   box-shadow: var(--shadow-lg);
-  transition: all 0.2s ease;
+  transition: opacity 0.2s ease, transform 0.2s ease;
   position: relative;
   z-index: 998;
 }
@@ -4172,7 +4186,7 @@ input::-ms-clear {
   color: var(--text-muted);
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.15s ease;
+  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .ops-tab-btn:hover {
@@ -4840,7 +4854,7 @@ input::-ms-clear {
   font-weight: 700;
   color: var(--text-muted);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .ops-team-pill:hover {
@@ -5098,7 +5112,7 @@ input::-ms-clear {
   font-size: 0.72rem;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.12s ease;
+  transition: color 0.12s ease, background-color 0.12s ease, border-color 0.12s ease;
   white-space: nowrap;
 }
 
@@ -5436,4 +5450,120 @@ input::-ms-clear {
 .th-clickable-copy:hover {
   color: var(--primary) !important;
   background: var(--bg-hover, rgba(14, 165, 233, 0.12)) !important;
+}
+
+/* ==========================================================================
+   PRELOADER ULTRA-LEVE & ZERO-FOUC
+   ========================================================================== */
+.rebuss-preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  background-color: var(--bg-page);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              visibility 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity, transform;
+}
+
+.rebuss-preloader.preloader-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: scale(1.02);
+}
+
+.preloader-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 32px 24px;
+}
+
+.preloader-icon-wrap {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.preloader-logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 10px;
+  animation: preloaderPulse 1.8s ease-in-out infinite;
+  z-index: 2;
+}
+
+.preloader-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2.5px solid transparent;
+  border-top-color: var(--primary);
+  border-right-color: var(--accent);
+  animation: preloaderSpin 0.9s linear infinite;
+  z-index: 1;
+}
+
+.preloader-brand-title {
+  font-family: var(--font-sans);
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: var(--text-main);
+  margin-bottom: 6px;
+}
+
+.preloader-status {
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 18px;
+}
+
+.preloader-track {
+  width: 160px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 99px;
+  overflow: hidden;
+  position: relative;
+}
+
+.preloader-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 40%;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  border-radius: 99px;
+  animation: preloaderShimmer 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes preloaderSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes preloaderPulse {
+  0%, 100% { transform: scale(0.96); opacity: 0.9; }
+  50% { transform: scale(1.04); opacity: 1; }
+}
+
+@keyframes preloaderShimmer {
+  0% { left: 0%; width: 30%; }
+  100% { left: 70%; width: 30%; }
 }
