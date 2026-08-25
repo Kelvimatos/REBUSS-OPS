@@ -65,15 +65,11 @@ const OperacoesModule = (() => {
       });
     }
 
-    const inputCidade = document.getElementById('ops-filter-cidade');
-    if (inputCidade) {
-      let debounceTimer = null;
-      inputCidade.addEventListener('input', (e) => {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-          state.cidade = e.target.value.trim();
-          carregarListaOperacoes();
-        }, 250);
+    const selectCidade = document.getElementById('ops-filter-cidade');
+    if (selectCidade) {
+      selectCidade.addEventListener('change', (e) => {
+        state.cidade = e.target.value;
+        carregarListaOperacoes();
       });
     }
 
@@ -92,6 +88,24 @@ const OperacoesModule = (() => {
         carregarListaOperacoes();
       });
     }
+
+    // Sincronização automática entre Cidade e Estado nos modais
+    document.getElementById('novo-op-cidade')?.addEventListener('change', (e) => {
+      const estadoInput = document.getElementById('novo-op-estado');
+      if (estadoInput) estadoInput.value = e.target.value;
+    });
+    document.getElementById('novo-op-estado')?.addEventListener('change', (e) => {
+      const cidadeInput = document.getElementById('novo-op-cidade');
+      if (cidadeInput) cidadeInput.value = e.target.value;
+    });
+    document.getElementById('edit-op-cidade')?.addEventListener('change', (e) => {
+      const estadoInput = document.getElementById('edit-op-estado');
+      if (estadoInput) estadoInput.value = e.target.value;
+    });
+    document.getElementById('edit-op-estado')?.addEventListener('change', (e) => {
+      const cidadeInput = document.getElementById('edit-op-cidade');
+      if (cidadeInput) cidadeInput.value = e.target.value;
+    });
 
     // Botão Limpar Filtros
     document.getElementById('btn-ops-limpar-filtros')?.addEventListener('click', () => {
@@ -931,8 +945,8 @@ const OperacoesModule = (() => {
     const data = dataInput?.value;
     const horario = horarioInput?.value;
     const piv = parseInt(pivInput?.value, 10) || 5;
-    const cidade = cidadeInput?.value.trim() || 'Belo Horizonte';
-    const estado = estadoInput?.value.trim().toUpperCase() || 'MG';
+    const cidade = cidadeInput?.value || 'SP';
+    const estado = estadoInput?.value || cidade;
 
     if (!loja || !data || !horario) {
       showToast('Preencha os campos obrigatórios da operação (Loja, Data e Horário)', 'error');
@@ -976,6 +990,18 @@ const OperacoesModule = (() => {
         btnSubmit.innerHTML = 'Criar Operação';
       }
     }
+  }
+
+  function normalizarSiglaPraca(val) {
+    if (!val) return 'SP';
+    const s = String(val).trim().toUpperCase();
+    if (['SP', 'DF', 'MG', 'GO', 'RJ'].includes(s)) return s;
+    if (s.includes('SÃO PAULO') || s.includes('SAO PAULO')) return 'SP';
+    if (s.includes('DISTRITO') || s.includes('BRASÍLIA') || s.includes('BRASILIA')) return 'DF';
+    if (s.includes('MINAS') || s.includes('BELO HORIZONTE')) return 'MG';
+    if (s.includes('GOIÁS') || s.includes('GOIAS') || s.includes('GOIÂNIA') || s.includes('GOIANIA')) return 'GO';
+    if (s.includes('RIO DE JANEIRO')) return 'RJ';
+    return 'SP';
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1031,8 +1057,9 @@ const OperacoesModule = (() => {
     }
 
     const nomeLoja = typeof op.loja === 'string' ? op.loja : (op.loja?.nome || op.lojaNome || '');
-    const cidade = op.cidade || (op.loja && typeof op.loja === 'object' ? op.loja.cidade : '') || 'Belo Horizonte';
-    const estado = op.estado || (op.loja && typeof op.loja === 'object' ? op.loja.estado : '') || 'MG';
+    const rawCidade = op.cidade || (op.loja && typeof op.loja === 'object' ? op.loja.cidade : '') || 'SP';
+    const rawEstado = op.estado || (op.loja && typeof op.loja === 'object' ? op.loja.estado : '') || 'SP';
+    const sigla = normalizarSiglaPraca(rawCidade || rawEstado);
     const piv = op.pivNecessario || op.piv || (op.metricas ? op.metricas.pivNecessario : 5) || 5;
     const horario = op.horario || '18:30';
 
@@ -1059,8 +1086,8 @@ const OperacoesModule = (() => {
     if (dataInput) dataInput.value = dt;
     if (horarioInput) horarioInput.value = horario;
     if (pivInput) pivInput.value = piv;
-    if (cidadeInput) cidadeInput.value = cidade;
-    if (estadoInput) estadoInput.value = estado;
+    if (cidadeInput) cidadeInput.value = sigla;
+    if (estadoInput) estadoInput.value = sigla;
 
     if (modal) {
       modal.classList.add('open', 'active');
@@ -1093,8 +1120,8 @@ const OperacoesModule = (() => {
     const data = dataInput?.value;
     const horario = horarioInput?.value;
     const piv = parseInt(pivInput?.value, 10) || 5;
-    const cidade = cidadeInput?.value.trim() || 'Belo Horizonte';
-    const estado = estadoInput?.value.trim().toUpperCase() || 'MG';
+    const cidade = cidadeInput?.value || 'SP';
+    const estado = estadoInput?.value || cidade;
 
     if (!loja || !data || !horario) {
       showToast('Preencha os campos obrigatórios (Nome da Loja, Data e Horário)', 'error');

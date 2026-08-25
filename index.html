@@ -527,24 +527,24 @@
           </div>
 
           <div class="ops-filter-field">
-            <input type="text" id="ops-filter-cidade" placeholder="Cidade..." autocomplete="off">
+            <select id="ops-filter-cidade">
+              <option value="todos">Todas as Cidades</option>
+              <option value="SP">SP</option>
+              <option value="DF">DF</option>
+              <option value="MG">MG</option>
+              <option value="GO">GO</option>
+              <option value="RJ">RJ</option>
+            </select>
           </div>
 
           <div class="ops-filter-field">
             <select id="ops-filter-estado">
               <option value="todos">Todos Estados</option>
-              <option value="MG">MG</option>
               <option value="SP">SP</option>
-              <option value="RJ">RJ</option>
               <option value="DF">DF</option>
+              <option value="MG">MG</option>
               <option value="GO">GO</option>
-              <option value="PR">PR</option>
-              <option value="BA">BA</option>
-              <option value="CE">CE</option>
-              <option value="PE">PE</option>
-              <option value="RS">RS</option>
-              <option value="SC">SC</option>
-              <option value="ES">ES</option>
+              <option value="RJ">RJ</option>
             </select>
           </div>
 
@@ -2208,11 +2208,23 @@ Exemplo:
           <div class="form-row-2">
             <div class="form-group">
               <label for="novo-op-cidade">Cidade *</label>
-              <input type="text" id="novo-op-cidade" value="Belo Horizonte" required>
+              <select id="novo-op-cidade" class="form-control" required>
+                <option value="SP" selected>SP</option>
+                <option value="DF">DF</option>
+                <option value="MG">MG</option>
+                <option value="GO">GO</option>
+                <option value="RJ">RJ</option>
+              </select>
             </div>
             <div class="form-group">
               <label for="novo-op-estado">Estado (UF) *</label>
-              <input type="text" id="novo-op-estado" value="MG" maxlength="2" style="text-transform:uppercase;" required>
+              <select id="novo-op-estado" class="form-control" required>
+                <option value="SP" selected>SP</option>
+                <option value="DF">DF</option>
+                <option value="MG">MG</option>
+                <option value="GO">GO</option>
+                <option value="RJ">RJ</option>
+              </select>
             </div>
           </div>
         </div>
@@ -2265,11 +2277,23 @@ Exemplo:
           <div class="form-row-2">
             <div class="form-group">
               <label for="edit-op-cidade">Cidade *</label>
-              <input type="text" id="edit-op-cidade" required>
+              <select id="edit-op-cidade" class="form-control" required>
+                <option value="SP">SP</option>
+                <option value="DF">DF</option>
+                <option value="MG">MG</option>
+                <option value="GO">GO</option>
+                <option value="RJ">RJ</option>
+              </select>
             </div>
             <div class="form-group">
               <label for="edit-op-estado">Estado (UF) *</label>
-              <input type="text" id="edit-op-estado" maxlength="2" style="text-transform:uppercase;" required>
+              <select id="edit-op-estado" class="form-control" required>
+                <option value="SP">SP</option>
+                <option value="DF">DF</option>
+                <option value="MG">MG</option>
+                <option value="GO">GO</option>
+                <option value="RJ">RJ</option>
+              </select>
             </div>
           </div>
         </div>
