@@ -58,8 +58,39 @@ function cleanPersonName(rawText) {
 }
 
 /**
+ * Detecta e padroniza o cargo extraído de qualquer texto/coluna
+ */
+function extractCargo(text) {
+  if (!text) return null;
+  const t = String(text).trim();
+  if (/supervisor(\s+general|\s+geral)?/i.test(t)) return 'Supervisor';
+  if (/jefe(\s+de\s+grupo)?/i.test(t)) return 'Jefe de Grupo';
+  if (/chefe(\s+de\s+grupo)?/i.test(t)) return 'Chefe de Grupo';
+  if (/l[íi]der/i.test(t)) return 'Chefe de Grupo';
+  if (/contador(a)?/i.test(t)) return 'Contador';
+  if (/(escaneador(a)?|op\.?\s*sistema|operador\s+de\s+sistema|op\.?\s*de\s*sistema)/i.test(t)) return 'Escaneador';
+  if (/conferente/i.test(t)) return 'Conferente';
+  if (/auxiliar/i.test(t)) return 'Auxiliar';
+  if (/operador(a)?/i.test(t)) return 'Operador';
+  return null;
+}
+
+/**
+ * Identifica se a célula é um documento (CPF, RG, ID numérico longo) para descartar
+ */
+function isDocumentOrUselessNumber(text) {
+  if (!text) return false;
+  const c = String(text).trim();
+  if (/^\d{6,16}$/.test(c)) return true;
+  if (/^\d{1,3}(\.\d{3}){2,3}(-\d{1,2})?$/.test(c)) return true; // CPF: 186.052.047-29 ou RG
+  if (/^\d{1,2}\.?\d{3}\.?\d{3}[-\/]?[\dxX]?$/i.test(c)) return true; // RG
+  return false;
+}
+
+/**
  * Parser de texto da equipe da aba Operações
- * Extrai: Nome, Cidade, Matrícula (string), Telefone, Cargo e Status.
+ * Extrai: Nome, Cidade, Matrícula (string), Telefone e Cargo.
+ * Descarta: 'Confirmado' e 'No confirmado' (todo colaborador inicia sempre como PENDENTE).
  * Suporta formatos com tabelas markdown (|), tabulações, listas com colchetes e linhas simples.
  */
 function parseEquipeText(rawText) {
@@ -83,37 +114,6 @@ function parseEquipeText(rawText) {
     let cidade = '';
     let telefone = '';
     let cargo = 'Operador';
-    let status = 'PENDENTE';
-
-    // Extração do cargo na linha se presente
-    const cargoMatch = line.match(/\b(Supervisor\s+general|Supervisor\s+geral|Supervisor|Supervisora|Jefe\s+de\s+grupo|Chefe\s+de\s+grupo|Contador|Contadora|Escaneador|Escaneadora|Op\.\s*Sistema|Líder|Conferente|Operador|Operadora|Auxiliar)\b/i);
-    if (cargoMatch) {
-      const c = cargoMatch[1].toLowerCase();
-      if (c.includes('supervisor')) cargo = 'Supervisor';
-      else if (c.includes('jefe') || c.includes('chefe') || c.includes('líder') || c.includes('lider')) cargo = 'Chefe de Grupo';
-      else if (c.includes('contador')) cargo = 'Contador';
-      else if (c.includes('escaneador') || c.includes('sistema')) cargo = 'Escaneador';
-      else if (c.includes('conferente')) cargo = 'Conferente';
-      else if (c.includes('auxiliar')) cargo = 'Auxiliar';
-      else cargo = 'Operador';
-    }
-
-    // Status na linha
-    if (/Confirmad[oa]/i.test(line) && !/No\s+confirmad|Não\s+confirmad|Nao\s+confirmad/i.test(line)) {
-      status = 'CONFIRMADO';
-    } else if (/A\s+caminho/i.test(line)) {
-      status = 'A_CAMINHO';
-    } else if (/Presente|Em\s+loja/i.test(line)) {
-      status = 'EM_LOJA';
-    } else if (/Atrasad[oa]/i.test(line)) {
-      status = 'ATRASADO';
-    } else if (/Faltou|Falta/i.test(line)) {
-      status = 'FALTOU';
-    } else if (/Recusou|Recusado/i.test(line)) {
-      status = 'RECUSOU';
-    } else if (/Cancelad[oa]/i.test(line)) {
-      status = 'CANCELADO';
-    }
 
     // 1. Extração da Matrícula e Nome dentro dos colchetes: [109186 - Albetisa Rodrigues Da Silva] ou [Nome]
     const bracketWithCode = line.match(/\[\s*(\d+)\s*[-–—:]\s*([^\]]+)\]/);
@@ -142,7 +142,7 @@ function parseEquipeText(rawText) {
     if (!nome && !matricula) continue;
     if (!nome && matricula) nome = `Colaborador ${matricula}`;
 
-    // 2. Extração de Cidade e Telefone através das colunas da tabela
+    // 2. Extração de Cargo, Cidade e Telefone através das colunas da tabela
     const delimiter = line.includes('|') ? '|' : (line.includes('\t') ? '\t' : null);
 
     if (delimiter) {
@@ -153,26 +153,30 @@ function parseEquipeText(rawText) {
         (nome && p.includes(nome))
       );
 
-      if (nameCellIdx !== -1) {
-        // Extrai cargo das colunas anteriores ao nome, se houver
-        if (nameCellIdx > 0) {
-          const beforeCells = parts.slice(0, nameCellIdx).filter(p => p !== '');
-          for (const cell of beforeCells) {
-            const matchBefore = cell.match(/\b(Supervisor\s+general|Supervisor\s+geral|Supervisor|Supervisora|Jefe\s+de\s+grupo|Chefe\s+de\s+grupo|Contador|Contadora|Escaneador|Escaneadora|Op\.\s*Sistema|Líder|Conferente|Operador|Operadora|Auxiliar)\b/i);
-            if (matchBefore) {
-              const cb = matchBefore[1].toLowerCase();
-              if (cb.includes('supervisor')) cargo = 'Supervisor';
-              else if (cb.includes('jefe') || cb.includes('chefe') || cb.includes('líder') || cb.includes('lider')) cargo = 'Chefe de Grupo';
-              else if (cb.includes('contador')) cargo = 'Contador';
-              else if (cb.includes('escaneador') || cb.includes('sistema')) cargo = 'Escaneador';
-              else if (cb.includes('conferente')) cargo = 'Conferente';
-              else if (cb.includes('auxiliar')) cargo = 'Auxiliar';
-              else cargo = 'Operador';
-              break;
-            }
+      // Extração de cargo: verifica colunas anteriores ao nome
+      if (nameCellIdx > 0) {
+        for (let j = 0; j < nameCellIdx; j++) {
+          const detectedCargo = extractCargo(parts[j]);
+          if (detectedCargo) {
+            cargo = detectedCargo;
+            break;
           }
         }
+      }
 
+      // Se ainda não achou cargo, verifica todas as células
+      if (cargo === 'Operador') {
+        for (let j = 0; j < parts.length; j++) {
+          if (j === nameCellIdx) continue;
+          const detectedCargo = extractCargo(parts[j]);
+          if (detectedCargo) {
+            cargo = detectedCargo;
+            break;
+          }
+        }
+      }
+
+      if (nameCellIdx !== -1) {
         const afterCells = parts.slice(nameCellIdx + 1).filter(p => p !== '');
         let foundUselessNumber = false;
         let foundCidade = false;
@@ -181,38 +185,44 @@ function parseEquipeText(rawText) {
           const trimmedCell = cell.trim();
           if (!trimmedCell) continue;
 
-          // Pular célula se for status ao buscar cidade/telefone
+          // Pular status ('Confirmado', 'No confirmado', etc. são descartados)
           if (/^(Confirmado|Confirmada|No\s+confirmado|No\s+confirma|Não\s+confirmado|Nao\s+confirmado|Pendente|Presente|Falta|Faltou|Atrasado|Atrasada|Recusado|Recusou|Cancelado)$/i.test(trimmedCell)) {
             continue;
           }
 
-          // Pular célula se for cargo ao buscar cidade/telefone (o cargo já foi capturado e salvo na propriedade cargo)
-          if (/^(Supervisor\s+general|Supervisor\s+geral|Supervisor|Supervisora|Jefe\s+de\s+grupo|Chefe\s+de\s+grupo|Operador|Operadora|Escaneador|Escaneadora|Op\.\s*Sistema|Contador|Contadora|Auxiliar|Líder|Conferente)$/i.test(trimmedCell)) {
+          // Pular cargo
+          if (extractCargo(trimmedCell)) {
             continue;
           }
 
-          // 1º número após o nome/link é o NÚMERO INÚTIL (ex: 00090765303, 19432854) -> DESCARTAR!
-          if (!foundUselessNumber && /^\d{6,15}$/.test(trimmedCell)) {
+          // Pular número de documento / ID inútil (ex: 00090765303, 19432854, 186.052.047-29)
+          if (!foundUselessNumber && isDocumentOrUselessNumber(trimmedCell)) {
             foundUselessNumber = true;
             continue;
           }
 
           // Célula após o número inútil é a CIDADE
           if (!foundCidade) {
-            if (!/^[\d\(\)\s\-\+]{8,20}$/.test(trimmedCell) && !/\(?\d{2}\)?\s*9?\d{4}[-.\s]?\d{4}/.test(trimmedCell)) {
+            if (!isDocumentOrUselessNumber(trimmedCell) && !/^[\d\(\)\s\-\+]{8,20}$/.test(trimmedCell) && !/\(?\d{2}\)?\s*9?\d{4}[-.\s]?\d{4}/.test(trimmedCell)) {
               cidade = trimmedCell;
               foundCidade = true;
               continue;
             }
           }
 
-          // Célula após a cidade é o TELEFONE
+          // Célula de TELEFONE
           if (!telefone && (/^[\d\(\)\s\-\+]{8,20}$/.test(trimmedCell) || /\(?\d{2}\)?\s*9?\d{4}[-.\s]?\d{4}/.test(trimmedCell))) {
             telefone = trimmedCell;
             break;
           }
         }
       }
+    }
+
+    // Se o cargo ainda não foi identificado por colunas, tenta extrair da linha inteira
+    if (cargo === 'Operador') {
+      const lineCargo = extractCargo(line);
+      if (lineCargo) cargo = lineCargo;
     }
 
     // Fallback para telefone se não encontrado por colunas
@@ -234,7 +244,7 @@ function parseEquipeText(rawText) {
       codigo: matricula ? String(matricula) : null,
       telefone: telefone || null,
       cargo,
-      status,
+      status: 'PENDENTE',
     });
   }
 
@@ -589,7 +599,7 @@ router.post('/importar', async (req, res) => {
       }
 
       const initialHistory = JSON.stringify([
-        { status: statusInicial, horario: new Date().toISOString() }
+        { status: 'PENDENTE', horario: new Date().toISOString() }
       ]);
 
       const membroExistente = escala.membros.find(m => m.usuarioId === user.id);
@@ -601,8 +611,8 @@ router.post('/importar', async (req, res) => {
               usuarioId: user.id,
               codigo: matriculaStr || codigoStr || user.codigo || null,
               cargo: cargoStr,
-              status: statusInicial,
-              confirmou: statusInicial === 'CONFIRMADO',
+              status: 'PENDENTE',
+              confirmou: false,
               cidade: cidadeStr || user.cidade || null,
               telefone: telefoneStr || user.telefone || null,
               historicoStatus: initialHistory,
@@ -1143,9 +1153,9 @@ router.post('/:id/importar-equipe', async (req, res) => {
         }
       }
 
-      // 4. Vincular colaborador à Escala
+      // 4. Vincular colaborador à Escala (Sempre inicia como PENDENTE)
       const initialHistory = JSON.stringify([
-        { status: statusInicial, horario: new Date().toISOString() }
+        { status: 'PENDENTE', horario: new Date().toISOString() }
       ]);
 
       const membroExistente = escala.membros.find(m => m.usuarioId === user.id);
@@ -1157,8 +1167,8 @@ router.post('/:id/importar-equipe', async (req, res) => {
               usuarioId: user.id,
               codigo: matriculaStr || codigoStr || user.codigo || null,
               cargo: cargoStr,
-              status: statusInicial,
-              confirmou: statusInicial === 'CONFIRMADO',
+              status: 'PENDENTE',
+              confirmou: false,
               cidade: cidadeStr || user.cidade || null,
               telefone: telefoneStr || user.telefone || null,
               historicoStatus: initialHistory,
@@ -1178,8 +1188,14 @@ router.post('/:id/importar-equipe', async (req, res) => {
               codigo: matriculaStr || codigoStr || user.codigo || membroExistente.codigo,
               telefone: telefoneStr || user.telefone || membroExistente.telefone,
               cidade: cidadeStr || user.cidade || membroExistente.cidade,
+              status: 'PENDENTE',
+              confirmou: false,
+              horarioConfirmacao: null,
+              chegou: false,
+              horarioChegada: null,
             },
           });
+          vinculados++;
         } catch (updMembroErr) {
           console.warn('Aviso: Falha ao atualizar membro existente na escala:', updMembroErr.message);
         }
