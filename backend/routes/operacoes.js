@@ -59,12 +59,12 @@ function cleanPersonName(rawText) {
 
 /**
  * Parser de texto da equipe da aba Operações
- * Extrai rigorosamente: Nome, Cidade, Matrícula (string) e Telefone.
- * Descarta: Cargo, URL, PH/I, número inútil antes da cidade e Status.
+ * Extrai: Nome, Cidade, Matrícula (string), Telefone, Cargo e Status.
+ * Suporta formatos com tabelas markdown (|), tabulações, listas com colchetes e linhas simples.
  */
 function parseEquipeText(rawText) {
   if (!rawText || !rawText.trim()) {
-    throw new Error('Texto de importação vazio');
+    return [];
   }
 
   const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
@@ -76,43 +76,77 @@ function parseEquipeText(rawText) {
 
     // Ignorar linhas de cabeçalho markdown ou separadores
     if (/^\|\s*[-:\s|]+\s*$/.test(line)) continue;
-    if (/^\|\s*(Cargo|Função|Nome|Colaborador)\b/i.test(line)) continue;
+    if (/^\|\s*(Cargo|Função|Nome|Colaborador|ID|Matrícula)\b/i.test(line)) continue;
 
     let matricula = '';
     let nome = '';
     let cidade = '';
     let telefone = '';
+    let cargo = 'Operador';
+    let status = 'PENDENTE';
 
-    // 1. Extração da Matrícula e Nome dentro dos colchetes: [109186 - Albetisa Rodrigues Da Silva]
-    const bracketMatch = line.match(/\[\s*(\d+)\s*[-–—:]\s*([^\]]+)\]/);
-    if (bracketMatch) {
-      matricula = String(bracketMatch[1]).trim();
-      nome = bracketMatch[2]
-        .replace(/\([^)]*\)/g, '')
-        .replace(/[*_#]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
+    // Extração do cargo na linha se presente
+    const cargoMatch = line.match(/\b(Supervisor\s+general|Supervisor\s+geral|Supervisor|Supervisora|Jefe\s+de\s+grupo|Chefe\s+de\s+grupo|Contador|Contadora|Escaneador|Escaneadora|Op\.\s*Sistema|Líder|Conferente|Operador|Operadora|Auxiliar)\b/i);
+    if (cargoMatch) {
+      const c = cargoMatch[1].toLowerCase();
+      if (c.includes('supervisor')) cargo = 'Supervisor';
+      else if (c.includes('jefe') || c.includes('chefe') || c.includes('líder') || c.includes('lider')) cargo = 'Chefe de Grupo';
+      else if (c.includes('contador')) cargo = 'Contador';
+      else if (c.includes('escaneador') || c.includes('sistema')) cargo = 'Escaneador';
+      else if (c.includes('conferente')) cargo = 'Conferente';
+      else if (c.includes('auxiliar')) cargo = 'Auxiliar';
+      else cargo = 'Operador';
+    }
+
+    // Status na linha
+    if (/Confirmad[oa]/i.test(line) && !/No\s+confirmad|Não\s+confirmad|Nao\s+confirmad/i.test(line)) {
+      status = 'CONFIRMADO';
+    } else if (/A\s+caminho/i.test(line)) {
+      status = 'A_CAMINHO';
+    } else if (/Presente|Em\s+loja/i.test(line)) {
+      status = 'EM_LOJA';
+    } else if (/Atrasad[oa]/i.test(line)) {
+      status = 'ATRASADO';
+    } else if (/Faltou|Falta/i.test(line)) {
+      status = 'FALTOU';
+    } else if (/Recusou|Recusado/i.test(line)) {
+      status = 'RECUSOU';
+    } else if (/Cancelad[oa]/i.test(line)) {
+      status = 'CANCELADO';
+    }
+
+    // 1. Extração da Matrícula e Nome dentro dos colchetes: [109186 - Albetisa Rodrigues Da Silva] ou [Nome]
+    const bracketWithCode = line.match(/\[\s*(\d+)\s*[-–—:]\s*([^\]]+)\]/);
+    const bracketOnlyName = line.match(/\[\s*([^\]0-9][^\]]+)\]/);
+
+    if (bracketWithCode) {
+      matricula = String(bracketWithCode[1]).trim();
+      nome = cleanPersonName(bracketWithCode[2]);
+    } else if (bracketOnlyName) {
+      nome = cleanPersonName(bracketOnlyName[1]);
     } else {
       // Fallback para linhas sem colchetes: 109186 - Nome Sobrenome
-      const fallbackCode = line.match(/(?:^|\|\s*)(\d{4,8})\s*[-–—:]\s*([A-Za-zÀ-ÖØ-öø-ÿ\s'.]+?)(?=(?:\s*\||\s*\(|\s*\d{6,}|\s*$))/);
+      const fallbackCode = line.match(/(?:^|\|\s*|\t)(\d{3,8})\s*[-–—:]\s*([A-Za-zÀ-ÖØ-öø-ÿ\s'.]+?)(?=(?:\s*\||\s*\t|\s*\(|\s*\d{6,}|\s*$))/);
       if (fallbackCode) {
         matricula = String(fallbackCode[1]).trim();
-        nome = fallbackCode[2]
-          .replace(/\([^)]*\)/g, '')
-          .replace(/[*_#]/g, '')
-          .replace(/\s+/g, ' ')
-          .trim();
+        nome = cleanPersonName(fallbackCode[2]);
+      } else {
+        // Fallback para linhas com apenas nome
+        const fallbackName = line.match(/(?:^|\|\s*|\t)([A-Za-zÀ-ÖØ-öø-ÿ]{2,}(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ]{2,})+)(?=(?:\s*\||\s*\t|\s*\(|\s*\d{6,}|\s*$))/);
+        if (fallbackName && !/^(Supervisor|Operador|Chefe|Contador|Escaneador|Status|Nome|Cidade|Função|Cargo)/i.test(fallbackName[1].trim())) {
+          nome = cleanPersonName(fallbackName[1]);
+        }
       }
     }
 
     if (!nome && !matricula) continue;
+    if (!nome && matricula) nome = `Colaborador ${matricula}`;
 
     // 2. Extração de Cidade e Telefone através das colunas da tabela
     const delimiter = line.includes('|') ? '|' : (line.includes('\t') ? '\t' : null);
 
     if (delimiter) {
       const parts = line.split(delimiter).map(p => p.trim());
-      // Localizar o índice da célula que contém o nome/matrícula
       const nameCellIdx = parts.findIndex(p =>
         p.includes('[') ||
         (matricula && p.includes(matricula)) ||
@@ -120,6 +154,25 @@ function parseEquipeText(rawText) {
       );
 
       if (nameCellIdx !== -1) {
+        // Extrai cargo das colunas anteriores ao nome, se houver
+        if (nameCellIdx > 0) {
+          const beforeCells = parts.slice(0, nameCellIdx).filter(p => p !== '');
+          for (const cell of beforeCells) {
+            const matchBefore = cell.match(/\b(Supervisor\s+general|Supervisor\s+geral|Supervisor|Supervisora|Jefe\s+de\s+grupo|Chefe\s+de\s+grupo|Contador|Contadora|Escaneador|Escaneadora|Op\.\s*Sistema|Líder|Conferente|Operador|Operadora|Auxiliar)\b/i);
+            if (matchBefore) {
+              const cb = matchBefore[1].toLowerCase();
+              if (cb.includes('supervisor')) cargo = 'Supervisor';
+              else if (cb.includes('jefe') || cb.includes('chefe') || cb.includes('líder') || cb.includes('lider')) cargo = 'Chefe de Grupo';
+              else if (cb.includes('contador')) cargo = 'Contador';
+              else if (cb.includes('escaneador') || cb.includes('sistema')) cargo = 'Escaneador';
+              else if (cb.includes('conferente')) cargo = 'Conferente';
+              else if (cb.includes('auxiliar')) cargo = 'Auxiliar';
+              else cargo = 'Operador';
+              break;
+            }
+          }
+        }
+
         const afterCells = parts.slice(nameCellIdx + 1).filter(p => p !== '');
         let foundUselessNumber = false;
         let foundCidade = false;
@@ -128,12 +181,12 @@ function parseEquipeText(rawText) {
           const trimmedCell = cell.trim();
           if (!trimmedCell) continue;
 
-          // Ignorar qualquer status (Confirmado, No confirmado, etc.)
+          // Pular célula se for status ao buscar cidade/telefone
           if (/^(Confirmado|Confirmada|No\s+confirmado|No\s+confirma|Não\s+confirmado|Nao\s+confirmado|Pendente|Presente|Falta|Faltou|Atrasado|Atrasada|Recusado|Recusou|Cancelado)$/i.test(trimmedCell)) {
             continue;
           }
 
-          // Ignorar qualquer cargo que apareça em células posteriores
+          // Pular célula se for cargo ao buscar cidade/telefone (o cargo já foi capturado e salvo na propriedade cargo)
           if (/^(Supervisor\s+general|Supervisor\s+geral|Supervisor|Supervisora|Jefe\s+de\s+grupo|Chefe\s+de\s+grupo|Operador|Operadora|Escaneador|Escaneadora|Op\.\s*Sistema|Contador|Contadora|Auxiliar|Líder|Conferente)$/i.test(trimmedCell)) {
             continue;
           }
@@ -146,7 +199,6 @@ function parseEquipeText(rawText) {
 
           // Célula após o número inútil é a CIDADE
           if (!foundCidade) {
-            // Garante que não é padrão de telefone
             if (!/^[\d\(\)\s\-\+]{8,20}$/.test(trimmedCell) && !/\(?\d{2}\)?\s*9?\d{4}[-.\s]?\d{4}/.test(trimmedCell)) {
               cidade = trimmedCell;
               foundCidade = true;
@@ -171,18 +223,18 @@ function parseEquipeText(rawText) {
     }
 
     // Deduplicação na mesma importação pela chave matricula_nome
-    const dedupKey = `${matricula}_${nome.toLowerCase()}`;
+    const dedupKey = matricula ? `${matricula}_${nome.toLowerCase()}` : nome.toLowerCase();
     if (processedKeys.has(dedupKey)) continue;
     processedKeys.add(dedupKey);
 
     colaboradores.push({
       nome,
       cidade: cidade || 'São Paulo',
-      matricula: String(matricula),
-      codigo: String(matricula),
-      telefone,
-      cargo: 'Operador',
-      status: 'PENDENTE',
+      matricula: matricula ? String(matricula) : null,
+      codigo: matricula ? String(matricula) : null,
+      telefone: telefone || null,
+      cargo,
+      status,
     });
   }
 
@@ -437,12 +489,33 @@ router.post('/importar', async (req, res) => {
       const nomeLimpo = cleanPersonName(colab.nome);
       if (!nomeLimpo) continue;
 
+      const matriculaStr = colab.matricula ? String(colab.matricula).trim() : null;
+      const codigoStr = colab.codigo ? String(colab.codigo).trim() : matriculaStr;
+      const telefoneStr = colab.telefone ? String(colab.telefone).trim() : null;
+      const cidadeStr = colab.cidade ? String(colab.cidade).trim() : (loja.cidade || 'São Paulo');
+      const cargoStr = colab.cargo || 'Operador';
+      const statusInicial = colab.status || 'PENDENTE';
+
       let user = null;
-      if (colab.codigo) {
-        user = await prisma.usuario.findFirst({ where: { codigo: colab.codigo } });
+      if (matriculaStr) {
+        user = await prisma.usuario.findFirst({
+          where: {
+            OR: [
+              { matricula: matriculaStr },
+              { codigo: matriculaStr }
+            ]
+          }
+        });
       }
-      if (!user && colab.matricula) {
-        user = await prisma.usuario.findFirst({ where: { matricula: colab.matricula } });
+      if (!user && codigoStr && codigoStr !== matriculaStr) {
+        user = await prisma.usuario.findFirst({
+          where: {
+            OR: [
+              { matricula: codigoStr },
+              { codigo: codigoStr }
+            ]
+          }
+        });
       }
       if (!user) {
         user = await prisma.usuario.findFirst({
@@ -451,51 +524,110 @@ router.post('/importar', async (req, res) => {
       }
 
       if (!user) {
-        user = await prisma.usuario.create({
-          data: {
-            nome: nomeLimpo,
-            codigo: colab.codigo || null,
-            matricula: colab.matricula || null,
-            telefone: colab.telefone || null,
-            cidade: colab.cidade || loja.cidade || 'São Paulo',
-            estado: loja.estado || 'SP',
-          },
-        });
-        novosCadastrados++;
+        let safeMatricula = matriculaStr;
+        let safeCodigo = codigoStr;
+
+        if (safeMatricula) {
+          const matExist = await prisma.usuario.findFirst({ where: { matricula: safeMatricula } });
+          if (matExist) safeMatricula = null;
+        }
+        if (safeCodigo) {
+          const codExist = await prisma.usuario.findFirst({ where: { codigo: safeCodigo } });
+          if (codExist) safeCodigo = null;
+        }
+
+        try {
+          user = await prisma.usuario.create({
+            data: {
+              nome: nomeLimpo,
+              codigo: safeCodigo,
+              matricula: safeMatricula,
+              telefone: telefoneStr || null,
+              cidade: cidadeStr,
+              estado: loja.estado || 'SP',
+            },
+          });
+          novosCadastrados++;
+        } catch (createErr) {
+          console.warn('Fallback na criação de usuário em /importar:', createErr.message);
+          user = await prisma.usuario.create({
+            data: {
+              nome: nomeLimpo,
+              codigo: null,
+              matricula: null,
+              telefone: telefoneStr || null,
+              cidade: cidadeStr,
+              estado: loja.estado || 'SP',
+            },
+          });
+          novosCadastrados++;
+        }
+      } else {
+        const updateUserData = {};
+        if (!user.telefone && telefoneStr) updateUserData.telefone = telefoneStr;
+        if (!user.cidade && cidadeStr) updateUserData.cidade = cidadeStr;
+
+        if (matriculaStr && !user.matricula) {
+          const matExist = await prisma.usuario.findFirst({ where: { matricula: matriculaStr } });
+          if (!matExist) updateUserData.matricula = matriculaStr;
+        }
+        if (codigoStr && !user.codigo) {
+          const codExist = await prisma.usuario.findFirst({ where: { codigo: codigoStr } });
+          if (!codExist) updateUserData.codigo = codigoStr;
+        }
+
+        if (Object.keys(updateUserData).length > 0) {
+          try {
+            user = await prisma.usuario.update({
+              where: { id: user.id },
+              data: updateUserData,
+            });
+          } catch (updErr) {
+            console.warn('Aviso: Falha ao atualizar dados do usuário em /importar:', updErr.message);
+          }
+        }
       }
 
-      const statusInicial = colab.status || 'PENDENTE';
       const initialHistory = JSON.stringify([
         { status: statusInicial, horario: new Date().toISOString() }
       ]);
 
       const membroExistente = escala.membros.find(m => m.usuarioId === user.id);
       if (!membroExistente) {
-        await prisma.escalaMembro.create({
-          data: {
-            escalaId: escala.id,
-            usuarioId: user.id,
-            codigo: colab.codigo || user.codigo || null,
-            cargo: colab.cargo || 'Operador',
-            status: statusInicial,
-            confirmou: statusInicial === 'CONFIRMADO',
-            cidade: colab.cidade || user.cidade || null,
-            telefone: colab.telefone || user.telefone || null,
-            historicoStatus: initialHistory,
-          },
-        });
-        totalAtualizados++;
+        try {
+          const novoMembro = await prisma.escalaMembro.create({
+            data: {
+              escalaId: escala.id,
+              usuarioId: user.id,
+              codigo: matriculaStr || codigoStr || user.codigo || null,
+              cargo: cargoStr,
+              status: statusInicial,
+              confirmou: statusInicial === 'CONFIRMADO',
+              cidade: cidadeStr || user.cidade || null,
+              telefone: telefoneStr || user.telefone || null,
+              historicoStatus: initialHistory,
+            },
+          });
+          escala.membros.push(novoMembro);
+          totalAtualizados++;
+        } catch (membroErr) {
+          console.warn('Aviso: Membro já existente na escala em /importar:', membroErr.message);
+        }
       } else {
-        await prisma.escalaMembro.update({
-          where: { id: membroExistente.id },
-          data: {
-            cargo: colab.cargo || membroExistente.cargo,
-            codigo: colab.codigo || membroExistente.codigo,
-            telefone: colab.telefone || membroExistente.telefone,
-            cidade: colab.cidade || membroExistente.cidade,
-          },
-        });
-        totalAtualizados++;
+        try {
+          await prisma.escalaMembro.update({
+            where: { id: membroExistente.id },
+            data: {
+              cargo: cargoStr || membroExistente.cargo,
+              codigo: matriculaStr || codigoStr || user.codigo || membroExistente.codigo,
+              telefone: telefoneStr || user.telefone || membroExistente.telefone,
+              cidade: cidadeStr || user.cidade || membroExistente.cidade,
+            },
+          });
+          totalAtualizados++;
+        } catch (updMembroErr) {
+          console.warn('Aviso: Falha ao atualizar membro existente em /importar:', updMembroErr.message);
+        }
       }
     }
 
@@ -885,98 +1017,192 @@ router.post('/:id/importar-equipe', async (req, res) => {
       return res.status(404).json({ erro: 'Operação não encontrada ou não pertence ao seu usuário' });
     }
 
-    let colaboradores = rawColabs;
-    if (!colaboradores || colaboradores.length === 0) {
-      if (!texto) return res.status(400).json({ erro: 'Envie o texto da equipe ou a lista de colaboradores' });
+    let colaboradores = Array.isArray(rawColabs) && rawColabs.length > 0 ? rawColabs : null;
+    if (!colaboradores) {
+      if (!texto || !texto.trim()) {
+        return res.status(400).json({ erro: 'Envie o texto da equipe ou a lista de colaboradores' });
+      }
       colaboradores = parseEquipeText(texto);
+    }
+
+    if (!colaboradores || colaboradores.length === 0) {
+      return res.status(400).json({ erro: 'Nenhum colaborador válido identificado no texto fornecido' });
     }
 
     let novosCadastrados = 0;
     let vinculados = 0;
 
     for (const colab of colaboradores) {
-      const nomeLimpo = colab.nome ? colab.nome.trim() : '';
+      const nomeLimpo = cleanPersonName(colab.nome);
       if (!nomeLimpo) continue;
 
       const matriculaStr = colab.matricula ? String(colab.matricula).trim() : null;
+      const codigoStr = colab.codigo ? String(colab.codigo).trim() : matriculaStr;
       const telefoneStr = colab.telefone ? String(colab.telefone).trim() : null;
-      const cidadeStr = colab.cidade ? String(colab.cidade).trim() : (escala.loja.cidade || 'São Paulo');
+      const cidadeStr = colab.cidade ? String(colab.cidade).trim() : (escala.loja?.cidade || 'São Paulo');
+      const cargoStr = colab.cargo || 'Operador';
+      const statusInicial = colab.status || 'PENDENTE';
 
       let user = null;
+
+      // 1. Busca segura por matrícula ou código
       if (matriculaStr) {
-        user = await prisma.usuario.findFirst({ where: { matricula: matriculaStr } });
+        user = await prisma.usuario.findFirst({
+          where: {
+            OR: [
+              { matricula: matriculaStr },
+              { codigo: matriculaStr }
+            ]
+          }
+        });
       }
-      if (!user && colab.codigo) {
-        user = await prisma.usuario.findFirst({ where: { codigo: String(colab.codigo).trim() } });
+
+      if (!user && codigoStr && codigoStr !== matriculaStr) {
+        user = await prisma.usuario.findFirst({
+          where: {
+            OR: [
+              { matricula: codigoStr },
+              { codigo: codigoStr }
+            ]
+          }
+        });
       }
+
+      // 2. Busca por nome se não achou por código/matrícula
       if (!user) {
         user = await prisma.usuario.findFirst({
           where: { nome: { equals: nomeLimpo, mode: 'insensitive' } },
         });
       }
 
+      // 3. Criação ou Atualização do Usuário
       if (!user) {
-        user = await prisma.usuario.create({
-          data: {
-            nome: nomeLimpo,
-            codigo: matriculaStr || colab.codigo || null,
-            matricula: matriculaStr || null,
-            telefone: telefoneStr || null,
-            cidade: cidadeStr,
-            estado: escala.loja.estado || 'SP',
-          },
-        });
-        novosCadastrados++;
+        let safeMatricula = matriculaStr;
+        let safeCodigo = codigoStr;
+
+        // Evita colisões de chave única
+        if (safeMatricula) {
+          const matExist = await prisma.usuario.findFirst({ where: { matricula: safeMatricula } });
+          if (matExist) safeMatricula = null;
+        }
+        if (safeCodigo) {
+          const codExist = await prisma.usuario.findFirst({ where: { codigo: safeCodigo } });
+          if (codExist) safeCodigo = null;
+        }
+
+        try {
+          user = await prisma.usuario.create({
+            data: {
+              nome: nomeLimpo,
+              codigo: safeCodigo,
+              matricula: safeMatricula,
+              telefone: telefoneStr || null,
+              cidade: cidadeStr,
+              estado: escala.loja?.estado || 'SP',
+            },
+          });
+          novosCadastrados++;
+        } catch (createErr) {
+          console.warn('Fallback na criação de usuário:', createErr.message);
+          user = await prisma.usuario.create({
+            data: {
+              nome: nomeLimpo,
+              codigo: null,
+              matricula: null,
+              telefone: telefoneStr || null,
+              cidade: cidadeStr,
+              estado: escala.loja?.estado || 'SP',
+            },
+          });
+          novosCadastrados++;
+        }
       } else {
-        // Se o usuário já existe mas tem telefone/cidade vazios, atualiza com os dados importados
+        // Atualiza campos complementares se estiverem vazios
         const updateUserData = {};
-        if (!user.matricula && matriculaStr) updateUserData.matricula = matriculaStr;
-        if (!user.codigo && matriculaStr) updateUserData.codigo = matriculaStr;
         if (!user.telefone && telefoneStr) updateUserData.telefone = telefoneStr;
         if (!user.cidade && cidadeStr) updateUserData.cidade = cidadeStr;
+
+        if (matriculaStr && !user.matricula) {
+          const matExist = await prisma.usuario.findFirst({ where: { matricula: matriculaStr } });
+          if (!matExist) updateUserData.matricula = matriculaStr;
+        }
+        if (codigoStr && !user.codigo) {
+          const codExist = await prisma.usuario.findFirst({ where: { codigo: codigoStr } });
+          if (!codExist) updateUserData.codigo = codigoStr;
+        }
+
         if (Object.keys(updateUserData).length > 0) {
-          await prisma.usuario.update({
-            where: { id: user.id },
-            data: updateUserData,
-          });
+          try {
+            user = await prisma.usuario.update({
+              where: { id: user.id },
+              data: updateUserData,
+            });
+          } catch (updErr) {
+            console.warn('Aviso: Não foi possível atualizar usuário:', updErr.message);
+          }
         }
       }
 
-      const statusInicial = 'PENDENTE';
+      // 4. Vincular colaborador à Escala
       const initialHistory = JSON.stringify([
         { status: statusInicial, horario: new Date().toISOString() }
       ]);
 
       const membroExistente = escala.membros.find(m => m.usuarioId === user.id);
       if (!membroExistente) {
-        await prisma.escalaMembro.create({
-          data: {
-            escalaId: escala.id,
-            usuarioId: user.id,
-            codigo: matriculaStr || user.codigo || null,
-            cargo: 'Operador',
-            status: statusInicial,
-            confirmou: false,
-            cidade: cidadeStr || user.cidade || null,
-            telefone: telefoneStr || user.telefone || null,
-            historicoStatus: initialHistory,
-          },
-        });
-        vinculados++;
+        try {
+          const novoMembro = await prisma.escalaMembro.create({
+            data: {
+              escalaId: escala.id,
+              usuarioId: user.id,
+              codigo: matriculaStr || codigoStr || user.codigo || null,
+              cargo: cargoStr,
+              status: statusInicial,
+              confirmou: statusInicial === 'CONFIRMADO',
+              cidade: cidadeStr || user.cidade || null,
+              telefone: telefoneStr || user.telefone || null,
+              historicoStatus: initialHistory,
+            },
+          });
+          escala.membros.push(novoMembro);
+          vinculados++;
+        } catch (membroErr) {
+          console.warn('Aviso: Membro já vinculado na escala:', membroErr.message);
+        }
+      } else {
+        try {
+          await prisma.escalaMembro.update({
+            where: { id: membroExistente.id },
+            data: {
+              cargo: cargoStr || membroExistente.cargo,
+              codigo: matriculaStr || codigoStr || user.codigo || membroExistente.codigo,
+              telefone: telefoneStr || user.telefone || membroExistente.telefone,
+              cidade: cidadeStr || user.cidade || membroExistente.cidade,
+            },
+          });
+        } catch (updMembroErr) {
+          console.warn('Aviso: Falha ao atualizar membro existente na escala:', updMembroErr.message);
+        }
       }
     }
 
-    await prisma.statusLog.create({
-      data: {
-        escalaId: escala.id,
-        tipo: 'IMPORTACAO',
-        descricao: `Equipe importada com ${colaboradores.length} colaboradores (${novosCadastrados} novos cadastros).`,
-      },
-    });
+    try {
+      await prisma.statusLog.create({
+        data: {
+          escalaId: escala.id,
+          usuarioId: req.userSistema?.id || null,
+          tipo: 'IMPORTACAO',
+          descricao: `Equipe importada com ${colaboradores.length} colaboradores (${novosCadastrados} novos cadastros, ${vinculados} vinculados).`,
+        },
+      });
+    } catch (logErr) {
+      console.warn('Aviso: Falha ao gravar statusLog:', logErr.message);
+    }
 
+    const lojaNome = escala.loja?.nome || 'Operação';
     res.json({
       sucesso: true,
-      mensagem: `${colaboradores.length} colaboradores importados para ${escala.loja.nome}!`,
+      mensagem: `${colaboradores.length} colaboradores importados para ${lojaNome}!`,
       totalProcessados: colaboradores.length,
       novosCadastrados,
       vinculados,

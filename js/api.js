@@ -84,7 +84,8 @@ var RebussAPI = (function () {
           }
         }
 
-        throw new Error(errData.erro || `Erro HTTP ${res.status}: ${res.statusText}`);
+        const msg = errData.detalhe ? `${errData.erro || 'Erro'}: ${errData.detalhe}` : (errData.erro || `Erro HTTP ${res.status}: ${res.statusText}`);
+        throw new Error(msg);
       }
 
       return await res.json();

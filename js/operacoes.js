@@ -1377,6 +1377,13 @@ const OperacoesModule = (() => {
       return;
     }
 
+    const btnAnalisar = document.getElementById('btn-analisar-equipe-op');
+    const originalText = btnAnalisar ? btnAnalisar.textContent : 'Analisar Equipe';
+    if (btnAnalisar) {
+      btnAnalisar.disabled = true;
+      btnAnalisar.textContent = 'Analisando...';
+    }
+
     try {
       const res = await RebussAPI.operacoes.analisar(texto);
       state.analiseEquipe = res.colaboradores || [];
@@ -1394,6 +1401,7 @@ const OperacoesModule = (() => {
         previewTbody.innerHTML = state.analiseEquipe.map((c, i) => `
           <tr>
             <td>${i + 1}</td>
+            <td><span class="ops-role-pill">${c.cargo || 'Operador'}</span></td>
             <td><strong>${c.nome}</strong></td>
             <td><code style="font-weight:700; color:var(--primary);">${c.matricula || '—'}</code></td>
             <td>${c.cidade || '—'}</td>
@@ -1405,10 +1413,19 @@ const OperacoesModule = (() => {
       if (previewWrap) previewWrap.style.display = 'block';
       if (btnConfirmar) btnConfirmar.disabled = state.analiseEquipe.length === 0;
 
-      showToast(`${state.analiseEquipe.length} colaboradores identificados!`);
+      if (state.analiseEquipe.length > 0) {
+        showToast(`${state.analiseEquipe.length} colaboradores identificados!`);
+      } else {
+        showToast('Nenhum colaborador identificado no texto fornecido', 'warning');
+      }
     } catch (err) {
       console.error('Erro ao analisar equipe:', err);
-      showToast('Erro ao interpretar texto da equipe', 'error');
+      showToast(err.message || 'Erro ao interpretar texto da equipe', 'error');
+    } finally {
+      if (btnAnalisar) {
+        btnAnalisar.disabled = false;
+        btnAnalisar.textContent = originalText;
+      }
     }
   }
 
@@ -1429,14 +1446,24 @@ const OperacoesModule = (() => {
     const ta = document.getElementById('textarea-equipe-op');
     const texto = ta ? ta.value.trim() : '';
 
-    if (!texto) {
+    if (!texto && (!state.analiseEquipe || state.analiseEquipe.length === 0)) {
       showToast('Texto de equipe vazio', 'error');
       return;
     }
 
+    const btnConfirmar = document.getElementById('btn-confirmar-importar-equipe-op');
+    const originalText = btnConfirmar ? btnConfirmar.textContent : 'Importar para a Operação';
+    if (btnConfirmar) {
+      btnConfirmar.disabled = true;
+      btnConfirmar.textContent = 'Importando...';
+    }
+
     try {
       const opId = state.operacaoAtiva.id;
-      const res = await RebussAPI.operacoes.importarEquipe(opId, { texto });
+      const res = await RebussAPI.operacoes.importarEquipe(opId, {
+        texto,
+        colaboradores: state.analiseEquipe || []
+      });
 
       fecharTodosModaisOps();
       showToast(res.mensagem || 'Equipe importada com sucesso!');
@@ -1444,7 +1471,12 @@ const OperacoesModule = (() => {
       await carregarDetalhesOperacao(opId);
     } catch (err) {
       console.error('Erro ao importar equipe:', err);
-      showToast('Erro ao importar equipe para o banco', 'error');
+      showToast(err.message || 'Erro ao importar equipe para o banco', 'error');
+    } finally {
+      if (btnConfirmar) {
+        btnConfirmar.disabled = false;
+        btnConfirmar.textContent = originalText;
+      }
     }
   }
 
