@@ -569,9 +569,48 @@ const EscalasModule = (() => {
   }
 
   function getActiveUserSignature() {
-    const activeUser = App.getCurrentUser();
-    if (!activeUser) return 'Equipe – Rebuss';
-    return `${activeUser.name} – Rebuss`;
+    let name = '';
+
+    // 1. Tenta obter do AuthModule
+    if (window.AuthModule && typeof window.AuthModule.getCurrentUser === 'function') {
+      const authUser = window.AuthModule.getCurrentUser();
+      if (authUser && authUser.nome) {
+        name = authUser.nome.trim();
+      }
+    }
+
+    // 2. Tenta obter do App.getCurrentUser / getActiveUser
+    if (!name && window.App && typeof window.App.getCurrentUser === 'function') {
+      const u = window.App.getCurrentUser();
+      if (u && (u.name || u.displayName)) {
+        name = (u.name || u.displayName).trim();
+      }
+    }
+
+    // 3. Tenta obter do localStorage
+    if (!name) {
+      try {
+        const localUser = JSON.parse(localStorage.getItem('rebuss_user') || 'null');
+        if (localUser && (localUser.nome || localUser.name)) {
+          name = (localUser.nome || localUser.name).trim();
+        }
+      } catch (e) {}
+    }
+
+    // Fallback se não logado ou nome genérico
+    if (!name || name.toLowerCase() === 'usuário' || name.toLowerCase() === 'usuario') {
+      name = 'Equipe';
+    }
+
+    // Extrai o primeiro nome para a assinatura amigável (ex: Kelvi Matos -> Kelvi)
+    const firstName = name.split(/\s+/)[0];
+
+    // Se o nome já termina ou contém 'rebuss', preserva sem duplicar
+    if (/rebuss$/i.test(name) || /rebuss$/i.test(firstName)) {
+      return name;
+    }
+
+    return `${firstName} Rebuss`;
   }
 
   // --- Geração da Mensagem Final ---

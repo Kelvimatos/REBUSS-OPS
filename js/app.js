@@ -1082,7 +1082,7 @@ const App = (() => {
     launchConfetti,
     showToast,
     copyToClipboard,
-    getCurrentUser: () => currentUser,
+    getCurrentUser: getActiveUser,
     USERS,
     navigateTo,
     updateAllUserAvatars,
