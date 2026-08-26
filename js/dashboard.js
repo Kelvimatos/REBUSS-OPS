@@ -1,6 +1,6 @@
 /**
  * REBUSS OPS — Módulo de Dashboard Operacional Executivo
- * Painel de alta densidade: Indicadores compactos, taxas operacionais, alertas prioritários, desempenho e Top 3.
+ * Painel de alta densidade: Indicadores compactos, taxas operacionais, resumo de operações em andamento, desempenho e Top 3.
  */
 
 const DashboardModule = (() => {
@@ -8,8 +8,6 @@ const DashboardModule = (() => {
 
   let currentPeriodo = 'hoje';
   let currentCidade = 'todas';
-  let todosAlertas = [];
-  let alertasExpandidos = false;
 
   const CIDADES = [
     { id: 'todas', label: 'Todas as Praças' },
@@ -26,7 +24,7 @@ const DashboardModule = (() => {
     renderFiltersUI();
     await Promise.all([
       loadIndicadores(),
-      loadAlertas(),
+      loadOperacoesEmAndamento(),
       loadRanking(),
     ]);
   }
@@ -173,78 +171,126 @@ const DashboardModule = (() => {
     `;
   }
 
-  // ─── 3. Alertas Operacionais (Máximo 5 com Toggle) ───────────────────────────
-  async function loadAlertas() {
-    const container = document.getElementById('dash-alertas-list');
-    const badgeCount = document.getElementById('dash-alertas-count');
-    const btnToggle = document.getElementById('btn-toggle-alertas');
+  // ─── 3. Operações em Andamento (Resumo Compacto e Consolidado - Máx 5) ────────
+  async function loadOperacoesEmAndamento() {
+    const container = document.getElementById('dash-operacoes-list');
+    const badgeCount = document.getElementById('dash-ops-count');
     if (!container) return;
 
     try {
-      const params = {};
+      const params = { periodo: currentPeriodo };
       if (currentCidade !== 'todas') params.cidade = currentCidade;
 
-      const alertas = await RebussAPI.dashboard.getAlertas(params);
-      todosAlertas = Array.isArray(alertas) ? alertas : [];
+      const rawOps = await RebussAPI.operacoes.list(params);
 
-      if (badgeCount) badgeCount.textContent = todosAlertas.length;
+      // Deduplicação estrita baseada no ID único da operação
+      const opsMap = new Map();
+      (Array.isArray(rawOps) ? rawOps : []).forEach(op => {
+        if (op && op.id && !opsMap.has(op.id)) {
+          opsMap.set(op.id, op);
+        }
+      });
+      const todasOperacoes = Array.from(opsMap.values());
 
-      if (todosAlertas.length === 0) {
-        if (btnToggle) btnToggle.style.display = 'none';
+      if (badgeCount) badgeCount.textContent = todasOperacoes.length;
+
+      if (todasOperacoes.length === 0) {
         container.innerHTML = `
           <div class="dash-empty-compact text-emerald">
-            ✓ Tudo sob controle. Nenhum alerta operacional pendente.
+            ✓ Nenhuma operação programada ou em andamento no momento.
           </div>
         `;
         return;
       }
 
-      if (btnToggle) {
-        if (todosAlertas.length > 5) {
-          btnToggle.style.display = 'inline-block';
-          btnToggle.textContent = alertasExpandidos ? 'Ver menos' : `Ver todos (${todosAlertas.length})`;
-        } else {
-          btnToggle.style.display = 'none';
+      // Ordenar: operações com problemas críticos primeiro (PIV incompleto, faltas), depois pendências, depois normais
+      todasOperacoes.sort((a, b) => {
+        const aCritico = (a.deficit > 0 || a.faltas > 0) ? 2 : (a.pendentes > 0 || a.atrasados > 0) ? 1 : 0;
+        const bCritico = (b.deficit > 0 || b.faltas > 0) ? 2 : (b.pendentes > 0 || b.atrasados > 0) ? 1 : 0;
+        if (bCritico !== aCritico) return bCritico - aCritico;
+        return (a.horario || '').localeCompare(b.horario || '');
+      });
+
+      const top5 = todasOperacoes.slice(0, 5);
+
+      container.innerHTML = top5.map(op => {
+        const pivMeta = op.pivNecessario || op.totalMembros || 5;
+        const emLoja = op.emLoja || 0;
+        const pivFaltante = Math.max(0, pivMeta - emLoja);
+        const faltas = op.faltas || 0;
+        const atrasados = op.atrasados || 0;
+        const pendentes = op.pendentes || 0;
+        const isFinalizada = op.status === 'FINALIZADA';
+
+        // Determinar status visual
+        let statusClass = 'status-normal';
+        let statusBadge = '<span class="dash-op-status-badge badge-normal">🟢 Normal</span>';
+
+        if (isFinalizada) {
+          statusClass = 'status-normal';
+          statusBadge = '<span class="dash-op-status-badge badge-normal">🟢 Finalizada</span>';
+        } else if (pivFaltante > 0 || faltas > 0) {
+          statusClass = 'status-critico';
+          statusBadge = '<span class="dash-op-status-badge badge-critico">🔴 Crítico</span>';
+        } else if (pendentes > 0 || atrasados > 0) {
+          statusClass = 'status-atencao';
+          statusBadge = '<span class="dash-op-status-badge badge-atencao">🟡 Atenção</span>';
         }
-      }
 
-      renderListaAlertas();
-    } catch (err) {
-      console.warn('Erro ao carregar alertas do dashboard:', err);
-      if (container) {
-        container.innerHTML = '<div class="dash-empty-compact">Falha ao carregar alertas operacionais.</div>';
-      }
-    }
-  }
+        // Construir pílulas de status consolidadas
+        const pills = [];
 
-  function renderListaAlertas() {
-    const container = document.getElementById('dash-alertas-list');
-    if (!container) return;
+        // 1. PIV (Regra estrita: PIV faltante = PIV Meta - PIV Atual)
+        if (pivFaltante > 0) {
+          pills.push(`<span class="dash-op-pill pill-piv-critico">🔴 PIV ${emLoja}/${pivMeta} — faltam ${pivFaltante}</span>`);
+        } else {
+          pills.push(`<span class="dash-op-pill pill-piv-ok">🟢 PIV ${pivMeta}/${pivMeta} — completo</span>`);
+        }
 
-    const listaExibida = alertasExpandidos ? todosAlertas : todosAlertas.slice(0, 5);
+        // 2. Faltas
+        if (faltas > 0) {
+          pills.push(`<span class="dash-op-pill pill-falta">🚫 ${faltas} ${faltas === 1 ? 'falta' : 'faltas'}</span>`);
+        }
 
-    container.innerHTML = listaExibida.map(a => {
-      const icone = a.icone || (a.nivel === 'critico' ? '🔴' : a.nivel === 'alerta' ? '🟠' : '🟡');
-      const clickAction = a.escalaId ? `onclick="DashboardModule.abrirOperacao('${a.escalaId}')" style="cursor:pointer;" title="Clique para abrir a operação"` : '';
-      return `
-        <div class="dash-alerta-compact-item nivel-${a.nivel || 'aviso'}" ${clickAction}>
-          <span class="alerta-compact-icon">${icone}</span>
-          <div class="alerta-compact-content">
-            <strong>${escapeHtml(a.titulo)}</strong>
-            <span>${escapeHtml(a.mensagem)}</span>
+        // 3. Atrasos
+        if (atrasados > 0) {
+          pills.push(`<span class="dash-op-pill pill-atraso">🟠 ${atrasados} ${atrasados === 1 ? 'atraso' : 'atrasos'}</span>`);
+        }
+
+        // 4. Confirmações pendentes (SEPARADO DO PIV FALTANTE!)
+        if (pendentes > 0) {
+          pills.push(`<span class="dash-op-pill pill-pendente">🔵 ${pendentes} ${pendentes === 1 ? 'confirmação pendente' : 'confirmações pendentes'}</span>`);
+        }
+
+        // 5. Sem problemas
+        if (pivFaltante === 0 && faltas === 0 && atrasados === 0 && pendentes === 0 && !isFinalizada) {
+          pills.push(`<span class="dash-op-pill pill-normal">🟢 Operação normal</span>`);
+        }
+
+        const horarioFmt = (op.horario || '18:30').trim();
+        const ufFmt = (op.estado || 'SP').trim().toUpperCase();
+
+        return `
+          <div class="dash-op-summary-card ${statusClass}" onclick="DashboardModule.abrirOperacao('${op.id}')" title="Clique para abrir ${escapeHtml(op.loja)}">
+            <div class="dash-op-card-head">
+              <div class="dash-op-name-loc">
+                <strong class="dash-op-name">${escapeHtml(op.loja)}</strong>
+                <span class="dash-op-loc">${horarioFmt} • ${ufFmt}</span>
+              </div>
+              ${statusBadge}
+            </div>
+            <div class="dash-op-pills-row">
+              ${pills.join('')}
+            </div>
           </div>
-        </div>
-      `;
-    }).join('');
-  }
-
-  function toggleAlertas() {
-    alertasExpandidos = !alertasExpandidos;
-    const btnToggle = document.getElementById('btn-toggle-alertas');
-    if (btnToggle) {
-      btnToggle.textContent = alertasExpandidos ? 'Ver menos' : `Ver todos (${todosAlertas.length})`;
+        `;
+      }).join('');
+    } catch (err) {
+      console.warn('Erro ao carregar operações em andamento do dashboard:', err);
+      if (container) {
+        container.innerHTML = '<div class="dash-empty-compact">Falha ao carregar operações em andamento.</div>';
+      }
     }
-    renderListaAlertas();
   }
 
   // ─── 4. Ranking Top 3 Melhores Colaboradores ─────────────────────────────────
@@ -327,7 +373,6 @@ const DashboardModule = (() => {
     recarregar: render,
     abrirOperacao,
     abrirModalEscala: abrirOperacao,
-    toggleAlertas,
   };
 })();
 

@@ -972,21 +972,21 @@
         </div>
       </div>
 
-      <!-- 3. Grid em 2 Colunas: Alertas Operacionais (Máx 5) & Desempenho Operacional -->
+      <!-- 3. Grid em 2 Colunas: Operações em Andamento (Máx 5) & Desempenho Operacional -->
       <div class="dash-middle-grid">
-        <!-- Coluna 1: Alertas Operacionais -->
+        <!-- Coluna 1: Operações em Andamento -->
         <div class="card dash-widget-card">
           <div class="dash-widget-header">
             <div class="dash-widget-title">
-              <h3>⚠️ Alertas Operacionais <span class="badge-count badge-danger" id="dash-alertas-count">0</span></h3>
-              <p>Notificações prioritárias (PIV pendente, atrasos e faltas)</p>
+              <h3>🏪 Operações em Andamento <span class="badge-count badge-primary" id="dash-ops-count">0</span></h3>
+              <p>Resumo consolidado das operações ativas</p>
             </div>
-            <button id="btn-toggle-alertas" class="btn btn-xs btn-outline-secondary" style="display:none;" onclick="DashboardModule.toggleAlertas()">
-              Ver todos
-            </button>
+            <a href="#/operacoes" class="dash-ver-todas-link" data-nav="operacoes">
+              Ver todas as operações →
+            </a>
           </div>
-          <div class="dash-alertas-compact-list" id="dash-alertas-list">
-            <!-- Renderizado via JS (máx 5 itens) -->
+          <div class="dash-ops-compact-list" id="dash-operacoes-list">
+            <!-- Renderizado via JS (máx 5 operações consolidadas) -->
           </div>
         </div>
 

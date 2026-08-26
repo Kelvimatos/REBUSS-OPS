@@ -3565,72 +3565,170 @@ input::-ms-clear {
   margin: 2px 0 0;
 }
 
-/* Alertas Compactos */
-.dash-alertas-compact-list {
+/* Operações em Andamento Compactas */
+.dash-ver-todas-link {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--primary);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: var(--transition);
+}
+
+.dash-ver-todas-link:hover {
+  text-decoration: underline;
+  color: var(--primary-hover);
+}
+
+.dash-ops-compact-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  max-height: 200px;
+  gap: 8px;
+  max-height: 250px;
   overflow-y: auto;
   padding-right: 2px;
 }
 
-.dash-alerta-compact-item {
+.dash-op-summary-card {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
   background: var(--bg-card-subtle);
-  border-left: 3px solid transparent;
-  font-size: 0.78rem;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
   transition: var(--transition);
 }
 
-.dash-alerta-compact-item:hover {
+.dash-op-summary-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--primary-border);
+  box-shadow: var(--shadow-sm);
   background: var(--bg-hover);
 }
 
-.dash-alerta-compact-item.nivel-critico {
+.dash-op-summary-card.status-critico {
   border-left-color: #ef4444;
-  background: rgba(239, 68, 68, 0.05);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, var(--bg-card-subtle) 100%);
 }
 
-.dash-alerta-compact-item.nivel-alerta {
+.dash-op-summary-card.status-atencao {
   border-left-color: #f59e0b;
-  background: rgba(245, 158, 11, 0.05);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, var(--bg-card-subtle) 100%);
 }
 
-.dash-alerta-compact-item.nivel-aviso {
-  border-left-color: #3b82f6;
-  background: rgba(59, 130, 246, 0.05);
+.dash-op-summary-card.status-normal {
+  border-left-color: #10b981;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, var(--bg-card-subtle) 100%);
 }
 
-.alerta-compact-icon {
-  font-size: 0.85rem;
-  line-height: 1.2;
+.dash-op-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
 }
 
-.alerta-compact-content {
-  flex: 1;
+.dash-op-name-loc {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   min-width: 0;
+  flex: 1;
 }
 
-.alerta-compact-content strong {
-  display: block;
-  font-size: 0.78rem;
+.dash-op-name {
+  font-size: 0.85rem;
+  font-weight: 800;
   color: var(--text-main);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.alerta-compact-content span {
-  display: block;
-  font-size: 0.7rem;
+.dash-op-loc {
+  font-size: 0.72rem;
+  font-weight: 600;
   color: var(--text-muted);
-  line-height: 1.2;
-  margin-top: 1px;
+  white-space: nowrap;
+}
+
+.dash-op-status-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.badge-critico {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.badge-atencao {
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.badge-normal {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.dash-op-pills-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.dash-op-pill {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pill-piv-critico {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.pill-piv-ok {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+}
+
+.pill-pendente {
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+}
+
+.pill-falta {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+.pill-atraso {
+  background: rgba(245, 158, 11, 0.1);
+  color: #b45309;
+}
+
+.pill-normal {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
 }
 
 /* Desempenho Operacional Compacto */
