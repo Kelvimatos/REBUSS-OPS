@@ -171,7 +171,170 @@ const DashboardModule = (() => {
     `;
   }
 
-  // ─── 3. Operações em Andamento (Resumo Compacto e Consolidado - Máx 5) ────────
+  // ─── 3. Normalização, Agrupamento e Consolidação por Loja Única ──────────────
+  function getStoreKey(op) {
+    if (op.lojaId) {
+      return `loja_id_${String(op.lojaId).trim()}`;
+    }
+    const rawNome = (op.loja || op.lojaNome || op.nome || '').trim();
+    const cleanedNome = rawNome
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/^(dsp|dp|loja|unidade|cd|local|inventario em)\s*[-–—:]*\s*/i, '')
+      .replace(/[^a-z0-9]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const cidade = (op.cidade || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '').trim();
+    const estado = (op.estado || '').toLowerCase().trim();
+
+    return `loja_name_${cleanedNome}_${cidade}_${estado}`;
+  }
+
+  function consolidarLojas(rawOps) {
+    const storesMap = new Map();
+
+    (Array.isArray(rawOps) ? rawOps : []).forEach(op => {
+      if (!op) return;
+      const storeKey = getStoreKey(op);
+      if (!storeKey) return;
+
+      if (!storesMap.has(storeKey)) {
+        storesMap.set(storeKey, {
+          storeKey,
+          lojaId: op.lojaId || op.id,
+          lojaNome: (op.loja || op.lojaNome || 'Loja').trim(),
+          cidade: (op.cidade || 'São Paulo').trim(),
+          estado: (op.estado || 'SP').trim().toUpperCase(),
+          registros: [],
+        });
+      }
+
+      storesMap.get(storeKey).registros.push(op);
+    });
+
+    const lojasConsolidadas = [];
+
+    for (const [, store] of storesMap) {
+      const { registros } = store;
+      if (!registros || registros.length === 0) continue;
+
+      // 1. Acumular PIV e métricas de todos os registros da mesma loja
+      let pivMeta = 0;
+      let emLoja = 0;
+      let faltas = 0;
+      let atrasados = 0;
+      let pendentes = 0;
+
+      // Ordenar registros por severidade de problema para escolher o ID e horário principal de foco
+      const sortedRegistros = [...registros].sort((a, b) => {
+        const aDef = Math.max(0, (Number(a.pivNecessario) || 0) - (Number(a.emLoja) || 0));
+        const bDef = Math.max(0, (Number(b.pivNecessario) || 0) - (Number(b.emLoja) || 0));
+        const aCrit = (aDef > 0 || (Number(a.faltas) || 0) > 0) ? 2 : ((Number(a.pendentes) || 0) > 0 || (Number(a.atrasados) || 0) > 0) ? 1 : 0;
+        const bCrit = (bDef > 0 || (Number(b.faltas) || 0) > 0) ? 2 : ((Number(b.pendentes) || 0) > 0 || (Number(b.atrasados) || 0) > 0) ? 1 : 0;
+        return bCrit - aCrit;
+      });
+
+      const operacaoPrincipalId = sortedRegistros[0].id;
+      const horarioPrincipal = sortedRegistros[0].horario || '18:30';
+      const todosFinalizados = registros.every(r => r.status === 'FINALIZADA');
+
+      for (const reg of registros) {
+        const rMeta = Number(reg.pivNecessario) || (reg.membros ? reg.membros.length : 0);
+        const rEmLoja = Number(reg.emLoja) || 0;
+        const rFaltas = Number(reg.faltas) || 0;
+        const rAtrasados = Number(reg.atrasados) || 0;
+        const rPendentes = Number(reg.pendentes) || 0;
+
+        pivMeta += rMeta;
+        emLoja += rEmLoja;
+        faltas += rFaltas;
+        atrasados += rAtrasados;
+        pendentes += rPendentes;
+      }
+
+      const pivFaltante = Math.max(0, pivMeta - emLoja);
+
+      // 2. Determinar status consolidado da loja (Prioridade: Crítico > Falta > Atraso > Pendente > Normal)
+      let statusClass = 'status-normal';
+      let statusBadge = '<span class="dash-op-status-badge badge-normal">🟢 Normal</span>';
+      let prioridadeScore = 0; // 0: Normal, 1: Atenção, 2: Crítico
+
+      if (todosFinalizados) {
+        statusClass = 'status-normal';
+        statusBadge = '<span class="dash-op-status-badge badge-normal">🟢 Finalizada</span>';
+        prioridadeScore = -1;
+      } else if (pivFaltante > 0 || faltas > 0) {
+        statusClass = 'status-critico';
+        statusBadge = '<span class="dash-op-status-badge badge-critico">🔴 Crítico</span>';
+        prioridadeScore = 2;
+      } else if (pendentes > 0 || atrasados > 0) {
+        statusClass = 'status-atencao';
+        statusBadge = '<span class="dash-op-status-badge badge-atencao">🟡 Atenção</span>';
+        prioridadeScore = 1;
+      }
+
+      // 3. Construir pílulas de status consolidadas
+      const pills = [];
+
+      // 1. PIV (Regra estrita: PIV faltante = PIV Meta - PIV Atual)
+      if (pivFaltante > 0) {
+        pills.push(`<span class="dash-op-pill pill-piv-critico">🔴 PIV ${emLoja}/${pivMeta} — faltam ${pivFaltante}</span>`);
+      } else if (pivMeta > 0) {
+        pills.push(`<span class="dash-op-pill pill-piv-ok">🟢 PIV ${pivMeta}/${pivMeta} — completo</span>`);
+      }
+
+      // 2. Faltas
+      if (faltas > 0) {
+        pills.push(`<span class="dash-op-pill pill-falta">🚫 ${faltas} ${faltas === 1 ? 'falta' : 'faltas'}</span>`);
+      }
+
+      // 3. Atrasos
+      if (atrasados > 0) {
+        pills.push(`<span class="dash-op-pill pill-atraso">🟠 ${atrasados} ${atrasados === 1 ? 'atraso' : 'atrasos'}</span>`);
+      }
+
+      // 4. Confirmações pendentes (SEPARADO DO PIV FALTANTE!)
+      if (pendentes > 0) {
+        pills.push(`<span class="dash-op-pill pill-pendente">🔵 ${pendentes} ${pendentes === 1 ? 'confirmação pendente' : 'confirmações pendentes'}</span>`);
+      }
+
+      // 5. Sem problemas
+      if (pivFaltante === 0 && faltas === 0 && atrasados === 0 && pendentes === 0 && !todosFinalizados) {
+        pills.push(`<span class="dash-op-pill pill-normal">🟢 Operação normal</span>`);
+      }
+
+      lojasConsolidadas.push({
+        lojaId: store.lojaId,
+        operacaoId: operacaoPrincipalId,
+        lojaNome: store.lojaNome,
+        cidade: store.cidade,
+        estado: store.estado,
+        horario: horarioPrincipal,
+        pivMeta,
+        emLoja,
+        pivFaltante,
+        faltas,
+        atrasados,
+        pendentes,
+        statusClass,
+        statusBadge,
+        pills,
+        prioridadeScore,
+      });
+    }
+
+    // 4. Ordenar lojas consolidadas: mais críticas primeiro, depois por horário
+    lojasConsolidadas.sort((a, b) => {
+      if (b.prioridadeScore !== a.prioridadeScore) {
+        return b.prioridadeScore - a.prioridadeScore;
+      }
+      return (a.horario || '').localeCompare(b.horario || '');
+    });
+
+    return lojasConsolidadas;
+  }
+
   async function loadOperacoesEmAndamento() {
     const container = document.getElementById('dash-operacoes-list');
     const badgeCount = document.getElementById('dash-ops-count');
@@ -183,18 +346,14 @@ const DashboardModule = (() => {
 
       const rawOps = await RebussAPI.operacoes.list(params);
 
-      // Deduplicação estrita baseada no ID único da operação
-      const opsMap = new Map();
-      (Array.isArray(rawOps) ? rawOps : []).forEach(op => {
-        if (op && op.id && !opsMap.has(op.id)) {
-          opsMap.set(op.id, op);
-        }
-      });
-      const todasOperacoes = Array.from(opsMap.values());
+      // ETAPA OBRIGATÓRIA: DEDUPLICAÇÃO E CONSOLIDAÇÃO POR LOJA ÚNICA (ANTES DO MAP)
+      const lojasConsolidadas = consolidarLojas(rawOps);
 
-      if (badgeCount) badgeCount.textContent = todasOperacoes.length;
+      if (badgeCount) {
+        badgeCount.textContent = lojasConsolidadas.length;
+      }
 
-      if (todasOperacoes.length === 0) {
+      if (lojasConsolidadas.length === 0) {
         container.innerHTML = `
           <div class="dash-empty-compact text-emerald">
             ✓ Nenhuma operação programada ou em andamento no momento.
@@ -203,84 +362,24 @@ const DashboardModule = (() => {
         return;
       }
 
-      // Ordenar: operações com problemas críticos primeiro (PIV incompleto, faltas), depois pendências, depois normais
-      todasOperacoes.sort((a, b) => {
-        const aCritico = (a.deficit > 0 || a.faltas > 0) ? 2 : (a.pendentes > 0 || a.atrasados > 0) ? 1 : 0;
-        const bCritico = (b.deficit > 0 || b.faltas > 0) ? 2 : (b.pendentes > 0 || b.atrasados > 0) ? 1 : 0;
-        if (bCritico !== aCritico) return bCritico - aCritico;
-        return (a.horario || '').localeCompare(b.horario || '');
-      });
+      // Limitar a exibição às 5 principais lojas em acompanhamento
+      const top5Lojas = lojasConsolidadas.slice(0, 5);
 
-      const top5 = todasOperacoes.slice(0, 5);
-
-      container.innerHTML = top5.map(op => {
-        const pivMeta = op.pivNecessario || op.totalMembros || 5;
-        const emLoja = op.emLoja || 0;
-        const pivFaltante = Math.max(0, pivMeta - emLoja);
-        const faltas = op.faltas || 0;
-        const atrasados = op.atrasados || 0;
-        const pendentes = op.pendentes || 0;
-        const isFinalizada = op.status === 'FINALIZADA';
-
-        // Determinar status visual
-        let statusClass = 'status-normal';
-        let statusBadge = '<span class="dash-op-status-badge badge-normal">🟢 Normal</span>';
-
-        if (isFinalizada) {
-          statusClass = 'status-normal';
-          statusBadge = '<span class="dash-op-status-badge badge-normal">🟢 Finalizada</span>';
-        } else if (pivFaltante > 0 || faltas > 0) {
-          statusClass = 'status-critico';
-          statusBadge = '<span class="dash-op-status-badge badge-critico">🔴 Crítico</span>';
-        } else if (pendentes > 0 || atrasados > 0) {
-          statusClass = 'status-atencao';
-          statusBadge = '<span class="dash-op-status-badge badge-atencao">🟡 Atenção</span>';
-        }
-
-        // Construir pílulas de status consolidadas
-        const pills = [];
-
-        // 1. PIV (Regra estrita: PIV faltante = PIV Meta - PIV Atual)
-        if (pivFaltante > 0) {
-          pills.push(`<span class="dash-op-pill pill-piv-critico">🔴 PIV ${emLoja}/${pivMeta} — faltam ${pivFaltante}</span>`);
-        } else {
-          pills.push(`<span class="dash-op-pill pill-piv-ok">🟢 PIV ${pivMeta}/${pivMeta} — completo</span>`);
-        }
-
-        // 2. Faltas
-        if (faltas > 0) {
-          pills.push(`<span class="dash-op-pill pill-falta">🚫 ${faltas} ${faltas === 1 ? 'falta' : 'faltas'}</span>`);
-        }
-
-        // 3. Atrasos
-        if (atrasados > 0) {
-          pills.push(`<span class="dash-op-pill pill-atraso">🟠 ${atrasados} ${atrasados === 1 ? 'atraso' : 'atrasos'}</span>`);
-        }
-
-        // 4. Confirmações pendentes (SEPARADO DO PIV FALTANTE!)
-        if (pendentes > 0) {
-          pills.push(`<span class="dash-op-pill pill-pendente">🔵 ${pendentes} ${pendentes === 1 ? 'confirmação pendente' : 'confirmações pendentes'}</span>`);
-        }
-
-        // 5. Sem problemas
-        if (pivFaltante === 0 && faltas === 0 && atrasados === 0 && pendentes === 0 && !isFinalizada) {
-          pills.push(`<span class="dash-op-pill pill-normal">🟢 Operação normal</span>`);
-        }
-
-        const horarioFmt = (op.horario || '18:30').trim();
-        const ufFmt = (op.estado || 'SP').trim().toUpperCase();
+      container.innerHTML = top5Lojas.map(loja => {
+        const horarioFmt = (loja.horario || '18:30').trim();
+        const ufFmt = (loja.estado || 'SP').trim().toUpperCase();
 
         return `
-          <div class="dash-op-summary-card ${statusClass}" onclick="DashboardModule.abrirOperacao('${op.id}')" title="Clique para abrir ${escapeHtml(op.loja)}">
+          <div class="dash-op-summary-card ${loja.statusClass}" onclick="DashboardModule.abrirOperacao('${loja.operacaoId}')" title="Clique para abrir ${escapeHtml(loja.lojaNome)}">
             <div class="dash-op-card-head">
               <div class="dash-op-name-loc">
-                <strong class="dash-op-name">${escapeHtml(op.loja)}</strong>
+                <strong class="dash-op-name">${escapeHtml(loja.lojaNome)}</strong>
                 <span class="dash-op-loc">${horarioFmt} • ${ufFmt}</span>
               </div>
-              ${statusBadge}
+              ${loja.statusBadge}
             </div>
             <div class="dash-op-pills-row">
-              ${pills.join('')}
+              ${loja.pills.join('')}
             </div>
           </div>
         `;
