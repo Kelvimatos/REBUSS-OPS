@@ -973,51 +973,114 @@ async function listarOperacoesComFiltro(query, userSistema) {
     },
   });
 
-  // Deduplicação estrita por op.id para garantir que nenhum ID apareça duplicado na resposta
-  const uniqueOperacoesMap = new Map();
+  // Agrupamento e Consolidação por Loja Física Única
+  const storesMap = new Map();
+
   for (const op of operacoes) {
-    if (!op || !op.id) continue;
-    if (!uniqueOperacoesMap.has(op.id)) {
-      uniqueOperacoesMap.set(op.id, op);
+    if (!op) continue;
+    const cleanName = cleanLojaName(op.loja?.nome);
+    const storeKey = op.lojaId
+      ? `loja_id_${op.lojaId}`
+      : `loja_name_${cleanName}_${(op.loja?.cidade || '').toLowerCase().trim()}_${(op.loja?.estado || '').toLowerCase().trim()}`;
+
+    if (!storesMap.has(storeKey)) {
+      storesMap.set(storeKey, {
+        storeKey,
+        lojaId: op.loja?.id || op.lojaId,
+        lojaNome: op.loja?.nome || 'Operação',
+        cidade: op.loja?.cidade || 'São Paulo',
+        estado: op.loja?.estado || 'SP',
+        endereco: op.loja?.endereco || '',
+        data: op.data,
+        registros: [],
+      });
     }
+
+    storesMap.get(storeKey).registros.push(op);
   }
 
-  const operacoesUnicas = Array.from(uniqueOperacoesMap.values());
+  const operacoesConsolidadas = [];
 
-  return operacoesUnicas.map(op => {
-    const pivNecessario = op.pivNecessario || op.membros.length || 0;
-    const confirmados = op.membros.filter(m => m.status === 'CONFIRMADO' || m.confirmou).length;
-    const aCaminho = op.membros.filter(m => m.status === 'A_CAMINHO').length;
-    const emLoja = op.membros.filter(m => m.status === 'EM_LOJA' || m.chegou).length;
-    const faltas = op.membros.filter(m => m.status === 'FALTOU').length;
-    const atrasados = op.membros.filter(m => m.status === 'ATRASADO').length;
-    const pendentes = op.membros.filter(m => m.status === 'PENDENTE').length;
+  for (const [, store] of storesMap) {
+    const { registros } = store;
+    if (!registros.length) continue;
 
-    const deficit = Math.max(0, pivNecessario - emLoja);
-    const pivIncompleto = emLoja < pivNecessario && op.status !== 'FINALIZADA';
+    // Acumular colaboradores únicos pela chave de matrícula ou nome
+    const membrosMap = new Map();
+    let pivNecessario = 0;
+    let observacoes = '';
 
-    let statusBadge = 'Completo';
-    if (op.status === 'FINALIZADA') {
-      statusBadge = 'Finalizada';
-    } else if (pivIncompleto && emLoja > 0) {
-      statusBadge = 'PIV Incompleto';
-    } else if (pendentes > 0) {
-      statusBadge = 'Pendente';
-    } else if (emLoja === 0 && confirmados > 0) {
-      statusBadge = 'Confirmada';
+    // Ordenar registros por criticidade para selecionar o ID e horário principal de foco
+    const sortedRegistros = [...registros].sort((a, b) => {
+      const aDef = Math.max(0, (a.pivNecessario || 0) - a.membros.filter(m => m.status === 'EM_LOJA' || m.chegou).length);
+      const bDef = Math.max(0, (b.pivNecessario || 0) - b.membros.filter(m => m.status === 'EM_LOJA' || m.chegou).length);
+      const aCrit = (aDef > 0 || a.membros.some(m => m.status === 'FALTOU')) ? 2 : (a.membros.some(m => m.status === 'PENDENTE' || m.status === 'ATRASADO')) ? 1 : 0;
+      const bCrit = (bDef > 0 || b.membros.some(m => m.status === 'FALTOU')) ? 2 : (b.membros.some(m => m.status === 'PENDENTE' || m.status === 'ATRASADO')) ? 1 : 0;
+      return bCrit - aCrit;
+    });
+
+    const opPrincipal = sortedRegistros[0];
+
+    for (const reg of registros) {
+      const meta = reg.pivNecessario || 0;
+      if (meta > pivNecessario) pivNecessario = meta;
+      if (reg.observacoes && !observacoes) observacoes = reg.observacoes;
+
+      for (const m of (reg.membros || [])) {
+        const memKey = m.usuarioId || (m.usuario?.matricula ? String(m.usuario.matricula) : null) || (m.usuario?.nome || '').toLowerCase().trim();
+        if (memKey && !membrosMap.has(memKey)) {
+          membrosMap.set(memKey, m);
+        }
+      }
     }
 
-    return {
-      id: op.id,
-      lojaId: op.loja?.id || op.lojaId,
-      loja: op.loja?.nome || 'Operação',
-      cidade: op.loja?.cidade || 'São Paulo',
-      estado: op.loja?.estado || 'SP',
-      endereco: op.loja?.endereco || '',
-      data: op.data,
-      horario: op.horario,
-      status: op.status,
-      observacoes: op.observacoes,
+    const membrosUnicos = Array.from(membrosMap.values());
+    if (pivNecessario === 0) {
+      pivNecessario = Math.max(membrosUnicos.length, 5);
+    }
+
+    const confirmados = membrosUnicos.filter(m => m.status === 'CONFIRMADO' || m.confirmou).length;
+    const aCaminho = membrosUnicos.filter(m => m.status === 'A_CAMINHO').length;
+    const emLoja = membrosUnicos.filter(m => m.status === 'EM_LOJA' || m.chegou).length;
+    const faltas = membrosUnicos.filter(m => m.status === 'FALTOU').length;
+    const atrasados = membrosUnicos.filter(m => m.status === 'ATRASADO').length;
+    const pendentes = membrosUnicos.filter(m => m.status === 'PENDENTE').length;
+
+    const deficit = Math.max(0, pivNecessario - emLoja);
+    const todosFinalizados = registros.every(r => r.status === 'FINALIZADA');
+    const pivIncompleto = emLoja < pivNecessario && !todosFinalizados;
+
+    let statusBadge = 'Completo';
+    let statusGeral = opPrincipal.status;
+
+    if (todosFinalizados) {
+      statusBadge = 'Finalizada';
+      statusGeral = 'FINALIZADA';
+    } else if (pivIncompleto) {
+      statusBadge = 'PIV Incompleto';
+      statusGeral = 'ABERTA';
+    } else if (pendentes > 0) {
+      statusBadge = 'Pendente';
+      statusGeral = 'ABERTA';
+    } else if (emLoja === 0 && confirmados > 0) {
+      statusBadge = 'Confirmada';
+      statusGeral = 'ABERTA';
+    } else {
+      statusBadge = 'Em andamento';
+      statusGeral = 'EM_ANDAMENTO';
+    }
+
+    operacoesConsolidadas.push({
+      id: opPrincipal.id,
+      lojaId: store.lojaId,
+      loja: store.lojaNome,
+      cidade: store.cidade,
+      estado: store.estado,
+      endereco: store.endereco,
+      data: store.data,
+      horario: opPrincipal.horario,
+      status: statusGeral,
+      observacoes,
       pivNecessario,
       confirmados,
       aCaminho,
@@ -1028,8 +1091,8 @@ async function listarOperacoesComFiltro(query, userSistema) {
       deficit,
       pivIncompleto,
       statusBadge,
-      totalMembros: op.membros.length,
-      membros: op.membros.map(m => ({
+      totalMembros: membrosUnicos.length,
+      membros: membrosUnicos.map(m => ({
         id: m.id,
         usuarioId: m.usuario?.id || m.usuarioId,
         codigo: m.codigo || m.usuario?.codigo || '—',
@@ -1041,10 +1104,12 @@ async function listarOperacoesComFiltro(query, userSistema) {
         status: m.status,
         confirmou: m.confirmou,
         chegou: m.chegou,
-        historicoStatus: m.historicoStatus ? JSON.parse(m.historicoStatus) : [],
+        historicoStatus: m.historicoStatus ? (typeof m.historicoStatus === 'string' ? JSON.parse(m.historicoStatus) : m.historicoStatus) : [],
       })),
-    };
-  });
+    });
+  }
+
+  return operacoesConsolidadas;
 }
 
 // GET /api/operacoes

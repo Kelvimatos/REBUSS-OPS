@@ -256,11 +256,164 @@ const OperacoesModule = (() => {
     }
   }
 
+  // ─── Normalização e Consolidação Estrita por Loja Física (1 Loja = 1 Card) ────
+  function getStoreKey(op) {
+    if (op.lojaId) {
+      return `loja_id_${String(op.lojaId).trim()}`;
+    }
+    const rawNome = (op.loja || op.lojaNome || op.nome || '').trim();
+    const cleanedNome = rawNome
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/^(dsp|dp|loja|unidade|cd|local|inventario em)\s*[-–—:]*\s*/i, '')
+      .replace(/[^a-z0-9]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const cidade = (op.cidade || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '').trim();
+    const estado = (op.estado || '').toLowerCase().trim();
+
+    return `loja_name_${cleanedNome}_${cidade}_${estado}`;
+  }
+
+  function consolidarLojas(rawOperacoes) {
+    const storesMap = new Map();
+
+    (Array.isArray(rawOperacoes) ? rawOperacoes : []).forEach(op => {
+      if (!op) return;
+      const storeKey = getStoreKey(op);
+      if (!storeKey) return;
+
+      if (!storesMap.has(storeKey)) {
+        storesMap.set(storeKey, {
+          storeKey,
+          lojaId: op.lojaId || op.id,
+          lojaNome: (op.loja || op.lojaNome || 'Loja').trim(),
+          cidade: (op.cidade || 'São Paulo').trim(),
+          estado: (op.estado || 'SP').trim().toUpperCase(),
+          data: op.data,
+          registros: [],
+        });
+      }
+
+      storesMap.get(storeKey).registros.push(op);
+    });
+
+    const lojasConsolidadas = [];
+
+    for (const [, store] of storesMap) {
+      const { registros } = store;
+      if (!registros || registros.length === 0) continue;
+
+      let pivNecessario = 0;
+      let confirmados = 0;
+      let aCaminho = 0;
+      let emLoja = 0;
+      let faltas = 0;
+      let atrasados = 0;
+      let pendentes = 0;
+
+      // Ordenar registros por criticidade para selecionar o ID e horário principal de foco
+      const sortedRegistros = [...registros].sort((a, b) => {
+        const aDef = Math.max(0, (Number(a.pivNecessario) || 0) - (Number(a.emLoja) || 0));
+        const bDef = Math.max(0, (Number(b.pivNecessario) || 0) - (Number(b.emLoja) || 0));
+        const aCrit = (aDef > 0 || (Number(a.faltas) || 0) > 0) ? 2 : ((Number(a.pendentes) || 0) > 0 || (Number(a.atrasados) || 0) > 0) ? 1 : 0;
+        const bCrit = (bDef > 0 || (Number(b.faltas) || 0) > 0) ? 2 : ((Number(b.pendentes) || 0) > 0 || (Number(b.atrasados) || 0) > 0) ? 1 : 0;
+        return bCrit - aCrit;
+      });
+
+      const opPrincipal = sortedRegistros[0];
+      const todosFinalizados = registros.every(r => r.status === 'FINALIZADA');
+
+      for (const reg of registros) {
+        const rMeta = Number(reg.pivNecessario) || (reg.membros ? reg.membros.length : 0);
+        if (rMeta > pivNecessario) pivNecessario = rMeta;
+
+        confirmados += Number(reg.confirmados) || 0;
+        aCaminho += Number(reg.aCaminho) || 0;
+        emLoja += Number(reg.emLoja) || 0;
+        faltas += Number(reg.faltas) || 0;
+        atrasados += Number(reg.atrasados) || 0;
+        pendentes += Number(reg.pendentes) || 0;
+      }
+
+      if (pivNecessario === 0) {
+        pivNecessario = Math.max(emLoja + confirmados, 5);
+      }
+
+      const deficit = Math.max(0, pivNecessario - emLoja);
+      const pivIncompleto = deficit > 0 && !todosFinalizados;
+
+      let statusBadgeClass = 'badge-completo';
+      let statusBadgeText = 'Em andamento';
+      let statusGeral = opPrincipal.status;
+
+      if (todosFinalizados) {
+        statusBadgeClass = 'badge-finalizada';
+        statusBadgeText = 'Finalizada';
+        statusGeral = 'FINALIZADA';
+      } else if (pivIncompleto) {
+        statusBadgeClass = 'badge-incompleto';
+        statusBadgeText = 'PIV Incompleto';
+        statusGeral = 'ABERTA';
+      } else if (faltas > 0) {
+        statusBadgeClass = 'badge-incompleto';
+        statusBadgeText = 'Faltas Registradas';
+        statusGeral = 'ABERTA';
+      } else if (atrasados > 0) {
+        statusBadgeClass = 'badge-atencao';
+        statusBadgeText = 'Atrasos';
+        statusGeral = 'ABERTA';
+      } else if (pendentes > 0) {
+        statusBadgeClass = 'badge-pendente';
+        statusBadgeText = 'Pendente';
+        statusGeral = 'ABERTA';
+      } else if (emLoja === 0 && confirmados > 0) {
+        statusBadgeClass = 'badge-completo';
+        statusBadgeText = 'Confirmada';
+        statusGeral = 'ABERTA';
+      }
+
+      lojasConsolidadas.push({
+        id: opPrincipal.id,
+        lojaId: store.lojaId,
+        loja: store.lojaNome,
+        cidade: store.cidade,
+        estado: store.estado,
+        data: opPrincipal.data || store.data,
+        horario: opPrincipal.horario || '18:30',
+        status: statusGeral,
+        pivNecessario,
+        confirmados,
+        aCaminho,
+        emLoja,
+        faltas,
+        atrasados,
+        pendentes,
+        deficit,
+        pivIncompleto,
+        statusBadgeClass,
+        statusBadgeText,
+        membros: opPrincipal.membros || [],
+      });
+    }
+
+    // Ordenar lojas consolidadas: críticas primeiro, depois horário
+    lojasConsolidadas.sort((a, b) => {
+      const aDef = a.deficit > 0 || a.faltas > 0 ? 2 : (a.pendentes > 0 || a.atrasados > 0 ? 1 : 0);
+      const bDef = b.deficit > 0 || b.faltas > 0 ? 2 : (b.pendentes > 0 || b.atrasados > 0 ? 1 : 0);
+      if (bDef !== aDef) return bDef - aDef;
+      return (a.horario || '').localeCompare(b.horario || '');
+    });
+
+    return lojasConsolidadas;
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
   // 1. CARREGAR LISTA DE OPERAÇÕES & CENTRAL DE PENDÊNCIAS
   // ─────────────────────────────────────────────────────────────────────────────
   async function carregarListaOperacoes() {
-    const listContainer = document.getElementById('ops-dia-list');
+    const listContainer = document.getElementById('ops-list') || document.getElementById('ops-dia-list');
     const pendenciasWrapper = document.getElementById('ops-pendencias-wrapper');
     const pendenciasContainer = document.getElementById('ops-pendencias-container');
     const contagemLabel = document.getElementById('ops-lista-contagem');
@@ -281,14 +434,8 @@ const OperacoesModule = (() => {
 
       const rawOperacoes = await RebussAPI.operacoes.list(params);
 
-      // Deduplicação estrita baseada no ID único da operação (preserva operações distintas de mesma loja)
-      const uniqueOpsMap = new Map();
-      (Array.isArray(rawOperacoes) ? rawOperacoes : []).forEach(op => {
-        if (op && op.id && !uniqueOpsMap.has(op.id)) {
-          uniqueOpsMap.set(op.id, op);
-        }
-      });
-      state.operacoesList = Array.from(uniqueOpsMap.values());
+      // ETAPA OBRIGATÓRIA: DEDUPLICAÇÃO E CONSOLIDAÇÃO POR LOJA FÍSICA ÚNICA
+      state.operacoesList = consolidarLojas(rawOperacoes);
 
       atualizarMetricasGlobais(state.operacoesList);
       renderizarPendencias(state.operacoesList, pendenciasContainer, pendenciasWrapper);
@@ -397,10 +544,10 @@ const OperacoesModule = (() => {
     if (wrapper) wrapper.style.display = 'block';
 
     container.innerHTML = pendencias.slice(0, 6).map(p => `
-      <div class="ops-pendencia-item ${p.tipo}" onclick="OperacoesModule.abrirOperacao('${p.opId}')" title="Clique para abrir ${p.loja}">
+      <div class="ops-pendencia-item ${p.tipo}" onclick="OperacoesModule.abrirOperacao('${p.opId}')" title="Clique para abrir ${escapeHtml(p.loja)}">
         <div class="ops-pendencia-text">
-          <strong>${p.titulo}</strong>
-          <span>${p.desc}</span>
+          <strong>${escapeHtml(p.titulo)}</strong>
+          <span>${escapeHtml(p.desc)}</span>
         </div>
         <button type="button" class="btn-outline-ops">Abrir</button>
       </div>
@@ -410,18 +557,15 @@ const OperacoesModule = (() => {
   function renderizarCardsOperacoes(operacoes, container, contagemEl, tituloEl) {
     if (!container) return;
 
-    // Garantir que a renderização ocorra sobre operações únicas por id
-    const uniqueMap = new Map();
-    (Array.isArray(operacoes) ? operacoes : []).forEach(op => {
-      if (op && op.id && !uniqueMap.has(op.id)) {
-        uniqueMap.set(op.id, op);
-      }
-    });
-    const listaUnica = Array.from(uniqueMap.values());
-    const count = listaUnica.length;
+    // Limpar o container de forma determinística
+    container.innerHTML = '';
+
+    // DEDUPLICAÇÃO E CONSOLIDAÇÃO OBRIGATÓRIA POR LOJA ÚNICA ANTES DO .map()
+    const uniqueStores = consolidarLojas(operacoes);
+    const count = uniqueStores.length;
 
     if (contagemEl) {
-      contagemEl.textContent = `${count} ${count === 1 ? 'operação encontrada' : 'operações encontradas'}`;
+      contagemEl.textContent = `${count} ${count === 1 ? 'loja em acompanhamento' : 'lojas em acompanhamento'}`;
     }
 
     if (tituloEl) {
@@ -447,36 +591,21 @@ const OperacoesModule = (() => {
       return;
     }
 
-    container.innerHTML = listaUnica.map(op => {
+    container.innerHTML = uniqueStores.map(op => {
       const dataFmt = formatarDataBR(op.data);
       const isFinalizada = op.status === 'FINALIZADA';
       const isPivIncompleto = op.pivIncompleto;
       const deficit = op.deficit || 0;
-
-      let statusBadgeClass = 'badge-completo';
-      let statusBadgeText = 'Em andamento';
-
-      if (isFinalizada) {
-        statusBadgeClass = 'badge-finalizada';
-        statusBadgeText = 'Finalizada';
-      } else if (isPivIncompleto) {
-        statusBadgeClass = 'badge-incompleto';
-        statusBadgeText = 'PIV Incompleto';
-      } else if (op.pendentes > 0) {
-        statusBadgeClass = 'badge-pendente';
-        statusBadgeText = 'Pendente';
-      }
-
       const pivPercent = op.pivNecessario > 0 ? Math.min(100, Math.round((op.emLoja / op.pivNecessario) * 100)) : 0;
 
       return `
         <div class="ops-card-item ${isFinalizada ? 'finalizada' : ''}">
           <div class="ops-card-header">
             <div>
-              <h3 class="ops-card-title">${op.loja}</h3>
-              <div class="ops-card-loc">${dataFmt} • ${op.horario} • ${op.cidade}/${op.estado}</div>
+              <h3 class="ops-card-title">${escapeHtml(op.loja)}</h3>
+              <div class="ops-card-loc">${dataFmt} • ${op.horario} • ${escapeHtml(op.cidade)}/${escapeHtml(op.estado)}</div>
             </div>
-            <span class="ops-badge-status ${statusBadgeClass}">${statusBadgeText}</span>
+            <span class="ops-badge-status ${op.statusBadgeClass}">${op.statusBadgeText}</span>
           </div>
 
           <div class="ops-card-piv-summary">
