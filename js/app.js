@@ -46,6 +46,17 @@ const App = (() => {
     } catch (e) {}
   })();
 
+  const globalScope = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this);
+  globalScope.escapeHtml = function(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
+
   function getActiveUser() {
     if (window.AuthModule && typeof window.AuthModule.getCurrentUser === 'function') {
       const authUser = window.AuthModule.getCurrentUser();
