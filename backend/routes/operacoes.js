@@ -1827,21 +1827,74 @@ router.put('/:id/finalizar', async (req, res) => {
 router.post('/:id/membros', async (req, res) => {
   try {
     const { id } = req.params;
-    const { usuarioId, cargo, status } = req.body;
-
-    if (!usuarioId) return res.status(400).json({ erro: 'usuarioId é obrigatório' });
+    let { usuarioId, nome, cargo, codigo, matricula, telefone, cidade, status } = req.body;
 
     const op = await prisma.escala.findFirst({
       where: getOperacaoWhere(id, req.userSistema),
+      include: { loja: true },
     });
 
     if (!op) return res.status(404).json({ erro: 'Operação não encontrada ou não pertence ao seu usuário' });
+
+    // Se usuarioId não for fornecido, busca ou cria o colaborador na tabela Usuario
+    if (!usuarioId) {
+      if (!nome || !nome.trim()) {
+        return res.status(400).json({ erro: 'Nome ou usuarioId é obrigatório' });
+      }
+
+      const nomeLimpo = cleanPersonName(nome);
+      const matriculaStr = (matricula || codigo) ? String(matricula || codigo).trim() : null;
+      const codigoStr = (codigo || matricula) ? String(codigo || matricula).trim() : null;
+      const telefoneStr = telefone ? String(telefone).trim() : null;
+      const cidadeStr = cidade ? String(cidade).trim() : (op.loja?.cidade || 'São Paulo');
+
+      let user = null;
+      if (matriculaStr) {
+        user = await prisma.usuario.findFirst({
+          where: {
+            OR: [
+              { matricula: matriculaStr },
+              { codigo: matriculaStr },
+            ],
+          },
+        });
+      }
+      if (!user) {
+        user = await prisma.usuario.findFirst({
+          where: { nome: { equals: nomeLimpo, mode: 'insensitive' } },
+        });
+      }
+      if (!user) {
+        let safeMatricula = matriculaStr;
+        let safeCodigo = codigoStr;
+        if (safeMatricula) {
+          const matExist = await prisma.usuario.findFirst({ where: { matricula: safeMatricula } });
+          if (matExist) safeMatricula = null;
+        }
+        if (safeCodigo) {
+          const codExist = await prisma.usuario.findFirst({ where: { codigo: safeCodigo } });
+          if (codExist) safeCodigo = null;
+        }
+
+        user = await prisma.usuario.create({
+          data: {
+            nome: nomeLimpo,
+            matricula: safeMatricula,
+            codigo: safeCodigo,
+            telefone: telefoneStr,
+            cidade: cidadeStr,
+            estado: op.loja?.estado || 'SP',
+          },
+        });
+      }
+      usuarioId = user.id;
+    }
 
     const membro = await prisma.escalaMembro.create({
       data: {
         escalaId: id,
         usuarioId,
-        cargo: cargo || 'Operador',
+        cargo: cargo ? cargo.trim() : 'Operador',
         status: status || 'PENDENTE',
         historicoStatus: JSON.stringify([{ status: status || 'PENDENTE', horario: new Date().toISOString() }]),
       },

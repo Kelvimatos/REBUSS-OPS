@@ -1669,7 +1669,7 @@ const OperacoesModule = (() => {
     const nome = prompt('Nome do colaborador:');
     if (!nome || !nome.trim()) return;
 
-    const cargo = prompt('Cargo (Supervisor / Operador):', 'Operador') || 'Operador';
+    const cargo = prompt('Cargo (Supervisor / Operador / Chefe de Grupo / Escaneador / Contador):', 'Operador') || 'Operador';
     const codigo = prompt('Código / Matrícula (opcional):', '') || '';
     const telefone = prompt('Telefone / WhatsApp (opcional):', '') || '';
 
@@ -1678,14 +1678,15 @@ const OperacoesModule = (() => {
         nome: nome.trim(),
         cargo: cargo.trim(),
         codigo: codigo.trim(),
+        matricula: codigo.trim(),
         telefone: telefone.trim(),
       });
 
-      showToast(`${nome} adicionado à operação!`);
+      showToast(`${nome.trim()} adicionado à operação com sucesso!`);
       await carregarDetalhesOperacao(state.operacaoAtiva.id);
     } catch (err) {
       console.error('Erro ao adicionar colaborador:', err);
-      showToast('Erro ao adicionar colaborador', 'error');
+      showToast(err.message || 'Erro ao adicionar colaborador', 'error');
     }
   }
 
