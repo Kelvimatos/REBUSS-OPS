@@ -1,6 +1,6 @@
 /**
- * REBUSS OPS — Módulo de Dashboard Operacional
- * Consulta dados em tempo real no PostgreSQL e renderiza métricas, gráficos, escalas de hoje, alertas e rankings.
+ * REBUSS OPS — Módulo de Dashboard Operacional Executivo
+ * Painel de alta densidade: Indicadores compactos, taxas operacionais, alertas prioritários, desempenho e Top 3.
  */
 
 const DashboardModule = (() => {
@@ -8,7 +8,8 @@ const DashboardModule = (() => {
 
   let currentPeriodo = 'hoje';
   let currentCidade = 'todas';
-  let searchQuery = '';
+  let todosAlertas = [];
+  let alertasExpandidos = false;
 
   const CIDADES = [
     { id: 'todas', label: 'Todas as Praças' },
@@ -25,10 +26,8 @@ const DashboardModule = (() => {
     renderFiltersUI();
     await Promise.all([
       loadIndicadores(),
-      loadEscalasHoje(),
       loadAlertas(),
       loadRanking(),
-      loadEquipes(),
     ]);
   }
 
@@ -68,26 +67,28 @@ const DashboardModule = (() => {
     });
   }
 
-  // ─── 1. Indicadores Principais & Porcentagens ─────────────────────────────────
+  // ─── 1. Indicadores Principais & Taxas Operacionais ──────────────────────────
   async function loadIndicadores() {
-    const container = document.getElementById('dash-metrics-container');
-    if (!container) return;
-
     try {
       const params = { periodo: currentPeriodo };
       if (currentCidade !== 'todas') params.cidade = currentCidade;
 
       const data = await RebussAPI.dashboard.getIndicadores(params);
 
-      // 8 Cards Numéricos
-      document.getElementById('m-piv-total').textContent = data.pivTotal ?? 0;
-      document.getElementById('m-confirmados').textContent = data.confirmados ?? 0;
-      document.getElementById('m-em-loja').textContent = data.emLoja ?? 0;
-      document.getElementById('m-a-caminho').textContent = data.aCaminho ?? 0;
-      document.getElementById('m-recusas').textContent = data.recusas ?? 0;
-      document.getElementById('m-faltas').textContent = data.faltas ?? 0;
-      document.getElementById('m-atrasos').textContent = data.atrasos ?? 0;
-      document.getElementById('m-cancelamentos').textContent = data.cancelamentos ?? 0;
+      // 8 Cards Numéricos Compactos
+      const setVal = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val ?? 0;
+      };
+
+      setVal('m-convites', data.convitesTotais ?? (data.confirmados + (data.recusas || 0) + (data.cancelamentos || 0)));
+      setVal('m-confirmados', data.confirmados ?? 0);
+      setVal('m-presentes', data.emLoja ?? 0);
+      setVal('m-a-caminho', data.aCaminho ?? 0);
+      setVal('m-em-loja', data.emLoja ?? 0);
+      setVal('m-faltas', data.faltas ?? 0);
+      setVal('m-atrasos', data.atrasos ?? 0);
+      setVal('m-cancelamentos', data.cancelamentos ?? 0);
 
       // 4 Taxas Percentuais
       renderTaxaCard('t-aceitacao', data.taxaAceitacao, '%', '#3b82f6');
@@ -95,89 +96,88 @@ const DashboardModule = (() => {
       renderTaxaCard('t-falta', data.taxaFalta, '%', '#ef4444');
       renderTaxaCard('t-atraso', data.taxaAtraso, '%', '#f59e0b');
 
-      renderChart(data);
+      // Resumo de Desempenho Operacional Compacto
+      renderDesempenhoCompacto(data);
     } catch (err) {
-      console.warn('Erro ao carregar indicadores:', err);
+      console.warn('Erro ao carregar indicadores do dashboard:', err);
     }
   }
 
   function renderTaxaCard(elementId, valor, unit, color) {
     const el = document.getElementById(elementId);
     const barEl = document.getElementById(`${elementId}-bar`);
-    if (el) el.textContent = `${valor}${unit}`;
+    const valNum = isNaN(Number(valor)) ? 0 : Number(valor);
+    if (el) el.textContent = `${valNum}${unit}`;
     if (barEl) {
-      barEl.style.width = `${Math.min(100, valor)}%`;
+      barEl.style.width = `${Math.min(100, Math.max(0, valNum))}%`;
       barEl.style.backgroundColor = color;
     }
   }
 
-  // ─── 2. Escalas de Hoje ──────────────────────────────────────────────────────
-  async function loadEscalasHoje() {
-    const container = document.getElementById('dash-escalas-list');
-    const badgeCount = document.getElementById('dash-escalas-count');
+  // ─── 2. Desempenho Operacional Compacto (Resumo Visual) ──────────────────────
+  function renderDesempenhoCompacto(data) {
+    const container = document.getElementById('dash-desempenho-compact');
     if (!container) return;
 
-    try {
-      const params = {};
-      if (currentCidade !== 'todas') params.cidade = currentCidade;
+    const confirmados = data.confirmados || 0;
+    const emLoja = data.emLoja || 0;
+    const faltas = data.faltas || 0;
+    const atrasos = data.atrasos || 0;
+    const recusas = data.recusas || 0;
 
-      const escalas = await RebussAPI.dashboard.getEscalasHoje(params);
-      if (badgeCount) badgeCount.textContent = escalas.length;
+    const pPresenca = confirmados > 0 ? Math.round((emLoja / confirmados) * 100) : 0;
+    const pFaltas = confirmados > 0 ? Math.round((faltas / confirmados) * 100) : 0;
+    const pAtrasos = emLoja > 0 ? Math.round((atrasos / emLoja) * 100) : 0;
+    const pRecusas = data.convitesTotais > 0 ? Math.round((recusas / data.convitesTotais) * 100) : 0;
 
-      if (!escalas || escalas.length === 0) {
-        container.innerHTML = `
-          <div class="dash-empty-box">
-            <span>Nenhuma operação programada para hoje nesta praça.</span>
-          </div>
-        `;
-        return;
-      }
-
-      container.innerHTML = escalas.map(e => `
-        <div class="dash-escala-card">
-          <div class="dash-escala-header">
-            <div>
-              <h4 class="dash-escala-loja">${escapeHtml(e.loja)}</h4>
-              <span class="dash-escala-loc">${escapeHtml(e.cidade)}/${escapeHtml(e.estado)} • ${e.horario}</span>
-            </div>
-            <span class="dash-status-pill status-${e.status.toLowerCase()}">${e.status}</span>
-          </div>
-
-          <div class="dash-escala-metrics">
-            <div class="escala-metric-item">
-              <span class="lbl">PIV Meta</span>
-              <span class="val">${e.pivNecessario}</span>
-            </div>
-            <div class="escala-metric-item">
-              <span class="lbl">Confirmados</span>
-              <span class="val text-success">${e.confirmados}</span>
-            </div>
-            <div class="escala-metric-item">
-              <span class="lbl">A Caminho</span>
-              <span class="val text-info">${e.aCaminho}</span>
-            </div>
-            <div class="escala-metric-item">
-              <span class="lbl">Em Loja</span>
-              <span class="val text-primary font-bold">${e.emLoja}</span>
-            </div>
-          </div>
-
-          <div class="dash-escala-actions">
-            <button class="btn btn-sm btn-outline-primary" onclick="DashboardModule.abrirModalEscala('${e.id}')">
-              Abrir Operação
-            </button>
-          </div>
+    container.innerHTML = `
+      <div class="desempenho-row">
+        <div class="desempenho-meta">
+          <span>✓ Presença em Loja</span>
+          <strong class="text-emerald">${emLoja} (${pPresenca}%)</strong>
         </div>
-      `).join('');
-    } catch (err) {
-      console.warn('Erro ao carregar escalas de hoje:', err);
-    }
+        <div class="desempenho-bar-track">
+          <div class="desempenho-bar-fill" style="width: ${pPresenca}%; background: #10b981;"></div>
+        </div>
+      </div>
+
+      <div class="desempenho-row">
+        <div class="desempenho-meta">
+          <span>🚫 Faltas Registradas</span>
+          <strong class="text-danger">${faltas} (${pFaltas}%)</strong>
+        </div>
+        <div class="desempenho-bar-track">
+          <div class="desempenho-bar-fill" style="width: ${pFaltas}%; background: #ef4444;"></div>
+        </div>
+      </div>
+
+      <div class="desempenho-row">
+        <div class="desempenho-meta">
+          <span>⏰ Atrasos Identificados</span>
+          <strong class="text-warning">${atrasos} (${pAtrasos}%)</strong>
+        </div>
+        <div class="desempenho-bar-track">
+          <div class="desempenho-bar-fill" style="width: ${pAtrasos}%; background: #f59e0b;"></div>
+        </div>
+      </div>
+
+      <div class="desempenho-row">
+        <div class="desempenho-meta">
+          <span>❌ Recusas de Convite</span>
+          <strong style="color:#8b5cf6;">${recusas} (${pRecusas}%)</strong>
+        </div>
+        <div class="desempenho-bar-track">
+          <div class="desempenho-bar-fill" style="width: ${pRecusas}%; background: #8b5cf6;"></div>
+        </div>
+      </div>
+    `;
   }
 
-  // ─── 3. Alertas Operacionais ─────────────────────────────────────────────────
+  // ─── 3. Alertas Operacionais (Máximo 5 com Toggle) ───────────────────────────
   async function loadAlertas() {
     const container = document.getElementById('dash-alertas-list');
     const badgeCount = document.getElementById('dash-alertas-count');
+    const btnToggle = document.getElementById('btn-toggle-alertas');
     if (!container) return;
 
     try {
@@ -185,42 +185,81 @@ const DashboardModule = (() => {
       if (currentCidade !== 'todas') params.cidade = currentCidade;
 
       const alertas = await RebussAPI.dashboard.getAlertas(params);
-      if (badgeCount) badgeCount.textContent = alertas.length;
+      todosAlertas = Array.isArray(alertas) ? alertas : [];
 
-      if (!alertas || alertas.length === 0) {
+      if (badgeCount) badgeCount.textContent = todosAlertas.length;
+
+      if (todosAlertas.length === 0) {
+        if (btnToggle) btnToggle.style.display = 'none';
         container.innerHTML = `
-          <div class="dash-empty-box text-success">
-            <span>Tudo sob controle. Nenhum alerta crítico registrado no momento.</span>
+          <div class="dash-empty-compact text-emerald">
+            ✓ Tudo sob controle. Nenhum alerta operacional pendente.
           </div>
         `;
         return;
       }
 
-      container.innerHTML = alertas.map(a => `
-        <div class="dash-alerta-item nivel-${a.nivel}">
-          <div class="alerta-body">
-            <strong>${escapeHtml(a.titulo)}</strong>
-            <p>${escapeHtml(a.mensagem)}</p>
-          </div>
-        </div>
-      `).join('');
+      if (btnToggle) {
+        if (todosAlertas.length > 5) {
+          btnToggle.style.display = 'inline-block';
+          btnToggle.textContent = alertasExpandidos ? 'Ver menos' : `Ver todos (${todosAlertas.length})`;
+        } else {
+          btnToggle.style.display = 'none';
+        }
+      }
+
+      renderListaAlertas();
     } catch (err) {
-      console.warn('Erro ao carregar alertas:', err);
+      console.warn('Erro ao carregar alertas do dashboard:', err);
+      if (container) {
+        container.innerHTML = '<div class="dash-empty-compact">Falha ao carregar alertas operacionais.</div>';
+      }
     }
   }
 
-  // ─── 4. Ranking de Melhores Colaboradores ────────────────────────────────────
+  function renderListaAlertas() {
+    const container = document.getElementById('dash-alertas-list');
+    if (!container) return;
+
+    const listaExibida = alertasExpandidos ? todosAlertas : todosAlertas.slice(0, 5);
+
+    container.innerHTML = listaExibida.map(a => {
+      const icone = a.icone || (a.nivel === 'critico' ? '🔴' : a.nivel === 'alerta' ? '🟠' : '🟡');
+      const clickAction = a.escalaId ? `onclick="DashboardModule.abrirOperacao('${a.escalaId}')" style="cursor:pointer;" title="Clique para abrir a operação"` : '';
+      return `
+        <div class="dash-alerta-compact-item nivel-${a.nivel || 'aviso'}" ${clickAction}>
+          <span class="alerta-compact-icon">${icone}</span>
+          <div class="alerta-compact-content">
+            <strong>${escapeHtml(a.titulo)}</strong>
+            <span>${escapeHtml(a.mensagem)}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function toggleAlertas() {
+    alertasExpandidos = !alertasExpandidos;
+    const btnToggle = document.getElementById('btn-toggle-alertas');
+    if (btnToggle) {
+      btnToggle.textContent = alertasExpandidos ? 'Ver menos' : `Ver todos (${todosAlertas.length})`;
+    }
+    renderListaAlertas();
+  }
+
+  // ─── 4. Ranking Top 3 Melhores Colaboradores ─────────────────────────────────
   async function loadRanking() {
     const container = document.getElementById('dash-ranking-list');
     if (!container) return;
 
     try {
       const ranking = await RebussAPI.dashboard.getRanking();
+      const lista = Array.isArray(ranking) ? ranking.slice(0, 3) : [];
 
-      if (!ranking || ranking.length === 0) {
+      if (lista.length === 0) {
         container.innerHTML = `
-          <div class="dash-empty-box">
-            <span>Nenhum histórico de pontualidade registrado ainda.</span>
+          <div class="dash-empty-compact" style="grid-column: 1 / -1;">
+            Nenhum histórico de pontualidade registrado no momento.
           </div>
         `;
         return;
@@ -228,146 +267,32 @@ const DashboardModule = (() => {
 
       const medals = ['🥇', '🥈', '🥉'];
 
-      container.innerHTML = ranking.slice(0, 6).map((colab, idx) => {
-        const medalha = medals[idx] || `<span class="rank-num">#${idx + 1}</span>`;
-        return `
-          <div class="dash-ranking-item">
-            <div class="rank-pos">${medalha}</div>
-            <div class="rank-info">
-              <strong class="rank-name">${escapeHtml(colab.nome)}</strong>
-              <span class="rank-meta">Matrícula: ${escapeHtml(colab.matricula)} · ${escapeHtml(colab.cidade)}</span>
-            </div>
-            <div class="rank-score">
-              <span class="score-badge">${colab.score}%</span>
-              <span class="score-lbl">Pontualidade</span>
-            </div>
+      container.innerHTML = lista.map((colab, idx) => `
+        <div class="dash-top3-card rank-${idx + 1}">
+          <div class="top3-medal">${medals[idx] || '🏆'}</div>
+          <div class="top3-info">
+            <strong class="top3-name">${escapeHtml(colab.nome)}</strong>
+            <span class="top3-meta">Matrícula ${escapeHtml(colab.matricula || '—')} · ${escapeHtml(colab.cidade || 'SP')}</span>
           </div>
-        `;
-      }).join('');
-    } catch (err) {
-      console.warn('Erro ao carregar ranking:', err);
-    }
-  }
-
-  // ─── 5. Resumo das Equipes ───────────────────────────────────────────────────
-  async function loadEquipes() {
-    const container = document.getElementById('dash-equipes-grid');
-    if (!container) return;
-
-    try {
-      const equipes = await RebussAPI.dashboard.getEquipes();
-
-      if (!equipes || equipes.length === 0) {
-        container.innerHTML = `
-          <div class="dash-empty-box">
-            <span>Nenhuma equipe cadastrada no banco.</span>
+          <div class="top3-score-wrap">
+            <strong class="top3-score">${colab.score ?? colab.taxaPresenca ?? 100}%</strong>
+            <span class="top3-score-lbl">Presença</span>
           </div>
-        `;
-        return;
-      }
-
-      container.innerHTML = equipes.slice(0, 6).map(eq => `
-        <div class="dash-equipe-mini-card">
-          <div class="eq-mini-head">
-            <strong>${escapeHtml(eq.nome)}</strong>
-            <span class="badge-tag">${escapeHtml(eq.estado || 'SP')}</span>
-          </div>
-          <div class="eq-mini-body">
-            <span>👥 ${eq.totalMembros} integrantes</span>
-            <span class="text-success font-bold">✓ ${eq.taxaPresenca}% presença</span>
-          </div>
-          <a href="#/equipes" class="btn btn-xs btn-outline-secondary mt-2" data-nav="equipes">
-            Ver Equipe
-          </a>
         </div>
       `).join('');
     } catch (err) {
-      console.warn('Erro ao carregar equipes:', err);
+      console.warn('Erro ao carregar ranking do dashboard:', err);
     }
   }
 
-  // ─── 6. Gráfico Operacional em Canvas HTML5 ──────────────────────────────────
-  function renderChart(data) {
-    const canvas = document.getElementById('dash-operation-chart');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const width = canvas.width = canvas.parentElement.clientWidth || 400;
-    const height = canvas.height = 200;
-
-    ctx.clearRect(0, 0, width, height);
-
-    const labels = ['Confirmados', 'Em Loja', 'A Caminho', 'Faltas', 'Atrasos', 'Recusas'];
-    const values = [
-      data.confirmados || 0,
-      data.emLoja || 0,
-      data.aCaminho || 0,
-      data.faltas || 0,
-      data.atrasos || 0,
-      data.recusas || 0,
-    ];
-    const colors = ['#3b82f6', '#10b981', '#06b6d4', '#ef4444', '#f59e0b', '#8b5cf6'];
-
-    const maxVal = Math.max(...values, 5);
-    const barWidth = Math.min(45, (width - 60) / labels.length - 12);
-    const startX = 35;
-    const chartHeight = height - 50;
-
-    // Linhas guias horizontais
-    ctx.strokeStyle = '#e2e8f0';
-    ctx.lineWidth = 1;
-    for (let i = 0; i <= 4; i++) {
-      const y = 20 + (chartHeight / 4) * i;
-      ctx.beginPath();
-      ctx.moveTo(startX, y);
-      ctx.lineTo(width - 20, y);
-      ctx.stroke();
-    }
-
-    // Barras
-    values.forEach((val, i) => {
-      const x = startX + i * (barWidth + 16) + 8;
-      const barH = (val / maxVal) * chartHeight;
-      const y = height - 30 - barH;
-
-      // Barra
-      ctx.fillStyle = colors[i];
-      ctx.beginPath();
-      ctx.roundRect(x, y, barWidth, barH, [4, 4, 0, 0]);
-      ctx.fill();
-
-      // Valor no topo
-      ctx.fillStyle = '#0f172a';
-      ctx.font = 'bold 11px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(val.toString(), x + barWidth / 2, y - 5);
-
-      // Label embaixo
-      ctx.fillStyle = '#64748b';
-      ctx.font = '10px sans-serif';
-      ctx.fillText(labels[i].substring(0, 6), x + barWidth / 2, height - 12);
-    });
-  }
-
-  // ─── Navegação Direta para a Operação no Painel Operacional ────────────────
-  async function abrirModalEscala(escalaId) {
+  // ─── Navegação Direta para a Operação ─────────────────────────────────────────
+  async function abrirOperacao(escalaId) {
     if (window.App && typeof App.navigateTo === 'function') {
       App.navigateTo('operacoes');
     }
     if (window.OperacoesModule && typeof OperacoesModule.abrirOperacao === 'function') {
       await OperacoesModule.abrirOperacao(escalaId);
     }
-  }
-
-  // ─── Busca Global ────────────────────────────────────────────────────────────
-  function handleGlobalSearch(query) {
-    searchQuery = query.toLowerCase().trim();
-    if (!searchQuery) {
-      document.getElementById('dash-search-results')?.classList.add('hide');
-      return;
-    }
-    // Filtrar dados em tela
   }
 
   function escapeHtml(str) {
@@ -388,21 +313,6 @@ const DashboardModule = (() => {
         render();
       });
     });
-
-    // Busca Global
-    const searchInput = document.getElementById('dash-global-search');
-    if (searchInput) {
-      let timer = null;
-      searchInput.addEventListener('input', (e) => {
-        clearTimeout(timer);
-        timer = setTimeout(() => handleGlobalSearch(e.target.value), 300);
-      });
-    }
-
-    // Modal Close
-    document.getElementById('modal-dash-escala-close')?.addEventListener('click', () => {
-      document.getElementById('modal-dash-escala-detalhe')?.classList.remove('open');
-    });
   }
 
   function init() {
@@ -414,7 +324,10 @@ const DashboardModule = (() => {
   return {
     init,
     render,
-    abrirModalEscala,
+    recarregar: render,
+    abrirOperacao,
+    abrirModalEscala: abrirOperacao,
+    toggleAlertas,
   };
 })();
 

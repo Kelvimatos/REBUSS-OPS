@@ -816,239 +816,204 @@
     <!-- ==========================================================================
          VIEW 0: DASHBOARD OPERACIONAL EM TEMPO REAL
          ========================================================================== -->
-    <section id="view-dashboard" class="view-section">
-      <!-- Topo: Boas-vindas e Data -->
-      <div class="dash-welcome-bar">
-        <div class="dash-welcome-text">
-          <h1 id="dash-user-greeting">Olá, Usuário 👋</h1>
-          <p class="dash-welcome-sub">Visão geral da operação em tempo real · <span id="dash-today-date">Hoje</span></p>
+    <section id="view-dashboard" class="view-section dash-executive-view">
+      <!-- Topo Compacto: Boas-vindas, Data e Filtros -->
+      <div class="dash-compact-header">
+        <div class="dash-header-info">
+          <div class="dash-title-row">
+            <h1 id="dash-user-greeting" class="dash-greeting-text">Olá, Usuário 👋</h1>
+            <span class="dash-live-badge"><span class="pulse-dot"></span> Tempo Real</span>
+          </div>
+          <p class="dash-header-sub">Painel executivo de indicadores operacionais · <span id="dash-today-date">Hoje</span></p>
         </div>
 
-        <div class="dash-welcome-controls">
+        <div class="dash-header-actions">
           <!-- Filtros de Período -->
           <div class="dash-periodo-group">
             <button class="dash-periodo-btn active" data-periodo="hoje">Hoje</button>
             <button class="dash-periodo-btn" data-periodo="7dias">7 dias</button>
             <button class="dash-periodo-btn" data-periodo="mes">Mês</button>
           </div>
-        </div>
-      </div>
 
-      <!-- Barra de Filtros de Praça / Cidade e Busca Global -->
-      <div class="dash-filter-bar">
-        <div class="dash-city-pills" id="dash-city-pills">
-          <!-- Gerado via JavaScript -->
-        </div>
-
-        <div class="dash-search-wrapper">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          <input type="text" id="dash-global-search" placeholder="Buscar colaborador, loja, equipe..." autocomplete="off">
-        </div>
-      </div>
-
-      <!-- 8 Cards de Indicadores Principais -->
-      <div class="dash-metrics-grid" id="dash-metrics-container">
-        <!-- PIV Total -->
-        <div class="metric-card metric-piv">
-          <div class="metric-icon">👥</div>
-          <div class="metric-content">
-            <span class="metric-title">PIV TOTAL</span>
-            <strong class="metric-value" id="m-piv-total">0</strong>
-            <span class="metric-sub">Pessoas necessárias</span>
+          <!-- Filtro de Praças Compacto -->
+          <div class="dash-city-pills" id="dash-city-pills">
+            <!-- Gerado via JavaScript -->
           </div>
+        </div>
+      </div>
+
+      <!-- 1. 8 Cards de Indicadores Principais (Ultra Compactos) -->
+      <div class="dash-metrics-strip" id="dash-metrics-container">
+        <!-- Convites -->
+        <div class="metric-compact-card card-convites">
+          <div class="metric-compact-top">
+            <span class="metric-compact-icon">📨</span>
+            <span class="metric-compact-label">Convites</span>
+          </div>
+          <strong class="metric-compact-value" id="m-convites">0</strong>
+          <span class="metric-compact-sub">Total disparado</span>
         </div>
 
         <!-- Confirmados -->
-        <div class="metric-card metric-confirmados">
-          <div class="metric-icon">✅</div>
-          <div class="metric-content">
-            <span class="metric-title">CONFIRMADOS</span>
-            <strong class="metric-value text-success" id="m-confirmados">0</strong>
-            <span class="metric-sub">Presença confirmada</span>
+        <div class="metric-compact-card card-confirmados">
+          <div class="metric-compact-top">
+            <span class="metric-compact-icon">✅</span>
+            <span class="metric-compact-label">Confirmados</span>
           </div>
+          <strong class="metric-compact-value text-success" id="m-confirmados">0</strong>
+          <span class="metric-compact-sub">Presença confirmada</span>
         </div>
 
-        <!-- Em Loja -->
-        <div class="metric-card metric-emloja">
-          <div class="metric-icon">🟢</div>
-          <div class="metric-content">
-            <span class="metric-title">EM LOJA</span>
-            <strong class="metric-value text-primary" id="m-em-loja">0</strong>
-            <span class="metric-sub">Já chegaram</span>
+        <!-- Presentes -->
+        <div class="metric-compact-card card-presentes">
+          <div class="metric-compact-top">
+            <span class="metric-compact-icon">👥</span>
+            <span class="metric-compact-label">Presentes</span>
           </div>
+          <strong class="metric-compact-value text-primary" id="m-presentes">0</strong>
+          <span class="metric-compact-sub">PIV atendido</span>
         </div>
 
         <!-- A Caminho -->
-        <div class="metric-card metric-caminho">
-          <div class="metric-icon">🚐</div>
-          <div class="metric-content">
-            <span class="metric-title">A CAMINHO</span>
-            <strong class="metric-value text-info" id="m-a-caminho">0</strong>
-            <span class="metric-sub">Em deslocamento</span>
+        <div class="metric-compact-card card-caminho">
+          <div class="metric-compact-top">
+            <span class="metric-compact-icon">🚐</span>
+            <span class="metric-compact-label">A Caminho</span>
           </div>
+          <strong class="metric-compact-value text-info" id="m-a-caminho">0</strong>
+          <span class="metric-compact-sub">Em trânsito</span>
         </div>
 
-        <!-- Recusas -->
-        <div class="metric-card metric-recusas">
-          <div class="metric-icon">❌</div>
-          <div class="metric-content">
-            <span class="metric-title">RECUSAS</span>
-            <strong class="metric-value text-warning" id="m-recusas">0</strong>
-            <span class="metric-sub">Convites recusados</span>
+        <!-- Em Loja -->
+        <div class="metric-compact-card card-emloja">
+          <div class="metric-compact-top">
+            <span class="metric-compact-icon">🟢</span>
+            <span class="metric-compact-label">Em Loja</span>
           </div>
+          <strong class="metric-compact-value text-emerald" id="m-em-loja">0</strong>
+          <span class="metric-compact-sub">No local</span>
         </div>
 
         <!-- Faltas -->
-        <div class="metric-card metric-faltas">
-          <div class="metric-icon">🚫</div>
-          <div class="metric-content">
-            <span class="metric-title">FALTAS</span>
-            <strong class="metric-value text-danger" id="m-faltas">0</strong>
-            <span class="metric-sub">Ausências registradas</span>
+        <div class="metric-compact-card card-faltas">
+          <div class="metric-compact-top">
+            <span class="metric-compact-icon">🚫</span>
+            <span class="metric-compact-label">Faltas</span>
           </div>
+          <strong class="metric-compact-value text-danger" id="m-faltas">0</strong>
+          <span class="metric-compact-sub">Ausências</span>
         </div>
 
         <!-- Atrasos -->
-        <div class="metric-card metric-atrasos">
-          <div class="metric-icon">⏰</div>
-          <div class="metric-content">
-            <span class="metric-title">ATRASOS</span>
-            <strong class="metric-value text-warning" id="m-atrasos">0</strong>
-            <span class="metric-sub">Chegadas tardias</span>
+        <div class="metric-compact-card card-atrasos">
+          <div class="metric-compact-top">
+            <span class="metric-compact-icon">⏰</span>
+            <span class="metric-compact-label">Atrasos</span>
           </div>
+          <strong class="metric-compact-value text-warning" id="m-atrasos">0</strong>
+          <span class="metric-compact-sub">Após horário</span>
         </div>
 
         <!-- Cancelamentos -->
-        <div class="metric-card metric-cancelados">
-          <div class="metric-icon">🔄</div>
-          <div class="metric-content">
-            <span class="metric-title">CANCELAMENTOS</span>
-            <strong class="metric-value text-muted" id="m-cancelamentos">0</strong>
-            <span class="metric-sub">Escalas canceladas</span>
+        <div class="metric-compact-card card-cancelados">
+          <div class="metric-compact-top">
+            <span class="metric-compact-icon">🔄</span>
+            <span class="metric-compact-label">Cancelamentos</span>
           </div>
+          <strong class="metric-compact-value text-muted" id="m-cancelamentos">0</strong>
+          <span class="metric-compact-sub">Desistências</span>
         </div>
       </div>
 
-      <!-- 4 Indicadores Percentuais -->
-      <div class="dash-rates-grid">
-        <div class="rate-card">
-          <div class="rate-header">
-            <span>Taxa de Aceitação</span>
-            <strong id="t-aceitacao">0%</strong>
+      <!-- 2. Taxas Operacionais (4 Indicadores Percentuais em Linha) -->
+      <div class="dash-rates-strip">
+        <div class="rate-compact-card">
+          <div class="rate-compact-head">
+            <span class="rate-label">Taxa de Aceitação</span>
+            <strong class="rate-val text-blue" id="t-aceitacao">0%</strong>
           </div>
           <div class="progress-bar-wrap">
             <div class="progress-bar-fill" id="t-aceitacao-bar" style="width: 0%; background: #3b82f6;"></div>
           </div>
-          <span class="rate-footer">Confirmados ÷ Convites</span>
+          <span class="rate-hint">Confirmados ÷ Convites</span>
         </div>
 
-        <div class="rate-card">
-          <div class="rate-header">
-            <span>Taxa de Presença</span>
-            <strong id="t-presenca" class="text-success">0%</strong>
+        <div class="rate-compact-card">
+          <div class="rate-compact-head">
+            <span class="rate-label">Taxa de Presença</span>
+            <strong class="rate-val text-success" id="t-presenca">0%</strong>
           </div>
           <div class="progress-bar-wrap">
             <div class="progress-bar-fill" id="t-presenca-bar" style="width: 0%; background: #10b981;"></div>
           </div>
-          <span class="rate-footer">Presentes ÷ Confirmados</span>
+          <span class="rate-hint">Presentes ÷ Confirmados</span>
         </div>
 
-        <div class="rate-card">
-          <div class="rate-header">
-            <span>Taxa de Falta</span>
-            <strong id="t-falta" class="text-danger">0%</strong>
+        <div class="rate-compact-card">
+          <div class="rate-compact-head">
+            <span class="rate-label">Taxa de Falta</span>
+            <strong class="rate-val text-danger" id="t-falta">0%</strong>
           </div>
           <div class="progress-bar-wrap">
             <div class="progress-bar-fill" id="t-falta-bar" style="width: 0%; background: #ef4444;"></div>
           </div>
-          <span class="rate-footer">Faltas ÷ Confirmados</span>
+          <span class="rate-hint">Faltas ÷ Confirmados</span>
         </div>
 
-        <div class="rate-card">
-          <div class="rate-header">
-            <span>Taxa de Atraso</span>
-            <strong id="t-atraso" class="text-warning">0%</strong>
+        <div class="rate-compact-card">
+          <div class="rate-compact-head">
+            <span class="rate-label">Taxa de Atraso</span>
+            <strong class="rate-val text-warning" id="t-atraso">0%</strong>
           </div>
           <div class="progress-bar-wrap">
             <div class="progress-bar-fill" id="t-atraso-bar" style="width: 0%; background: #f59e0b;"></div>
           </div>
-          <span class="rate-footer">Atrasos ÷ Presentes</span>
+          <span class="rate-hint">Atrasos ÷ Presentes</span>
         </div>
       </div>
 
-      <!-- Seção em 2 Colunas: Escalas de Hoje & Alertas Operacionais -->
-      <div class="dash-2cols-grid">
-        <!-- Coluna 1: Escalas de Hoje -->
-        <div class="card dash-panel-card">
-          <div class="card-header">
-            <div class="card-title-block">
-              <h3>📅 Escalas de Hoje <span class="badge-count" id="dash-escalas-count">0</span></h3>
-              <p>Lojas programadas com acompanhamento de PIV em tempo real</p>
-            </div>
-            <a href="#/escalas" class="btn btn-sm btn-ghost" data-nav="escalas">Gerar Nova Escala</a>
-          </div>
-          <div class="dash-escalas-container" id="dash-escalas-list">
-            <!-- Renderizado via JS -->
-          </div>
-        </div>
-
-        <!-- Coluna 2: Alertas Operacionais -->
-        <div class="card dash-panel-card">
-          <div class="card-header">
-            <div class="card-title-block">
+      <!-- 3. Grid em 2 Colunas: Alertas Operacionais (Máx 5) & Desempenho Operacional -->
+      <div class="dash-middle-grid">
+        <!-- Coluna 1: Alertas Operacionais -->
+        <div class="card dash-widget-card">
+          <div class="dash-widget-header">
+            <div class="dash-widget-title">
               <h3>⚠️ Alertas Operacionais <span class="badge-count badge-danger" id="dash-alertas-count">0</span></h3>
-              <p>Notificações automáticas de PIV pendente, atrasos e faltas</p>
+              <p>Notificações prioritárias (PIV pendente, atrasos e faltas)</p>
             </div>
+            <button id="btn-toggle-alertas" class="btn btn-xs btn-outline-secondary" style="display:none;" onclick="DashboardModule.toggleAlertas()">
+              Ver todos
+            </button>
           </div>
-          <div class="dash-alertas-container" id="dash-alertas-list">
-            <!-- Renderizado via JS -->
+          <div class="dash-alertas-compact-list" id="dash-alertas-list">
+            <!-- Renderizado via JS (máx 5 itens) -->
           </div>
         </div>
-      </div>
 
-      <!-- Seção em 2 Colunas: Gráfico Operacional & Ranking -->
-      <div class="dash-2cols-grid">
-        <!-- Coluna 1: Gráfico Operacional -->
-        <div class="card dash-panel-card">
-          <div class="card-header">
-            <div class="card-title-block">
+        <!-- Coluna 2: Desempenho Operacional -->
+        <div class="card dash-widget-card">
+          <div class="dash-widget-header">
+            <div class="dash-widget-title">
               <h3>📊 Desempenho Operacional</h3>
-              <p>Distribuição de presenças, faltas, atrasos e recusas</p>
+              <p>Resumo de presenças, faltas, atrasos e recusas</p>
             </div>
           </div>
-          <div class="dash-chart-container">
-            <canvas id="dash-operation-chart" height="200"></canvas>
-          </div>
-        </div>
-
-        <!-- Coluna 2: Ranking de Colaboradores -->
-        <div class="card dash-panel-card">
-          <div class="card-header">
-            <div class="card-title-block">
-              <h3>🏆 Melhores Colaboradores</h3>
-              <p>Top pontualidade e assiduidade nos plantões</p>
-            </div>
-          </div>
-          <div class="dash-ranking-container" id="dash-ranking-list">
+          <div class="dash-desempenho-compact-wrap" id="dash-desempenho-compact">
             <!-- Renderizado via JS -->
           </div>
         </div>
       </div>
 
-      <!-- Seção: Resumo das Equipes -->
-      <div class="card dash-panel-card">
-        <div class="card-header">
-          <div class="card-title-block">
-            <h3>👥 Resumo das Equipes Fixas</h3>
-            <p>Visão geral de integrantes e taxa de presença consolidada</p>
+      <!-- 4. Melhores Colaboradores (Top 3) -->
+      <div class="card dash-widget-card dash-top3-section">
+        <div class="dash-widget-header">
+          <div class="dash-widget-title">
+            <h3>🏆 Melhores Colaboradores</h3>
+            <p>Top 3 em pontualidade e assiduidade nos plantões</p>
           </div>
-          <a href="#/equipes" class="btn btn-sm btn-ghost" data-nav="equipes">Ver Todas as Equipes</a>
         </div>
-        <div class="dash-equipes-grid" id="dash-equipes-grid">
-          <!-- Renderizado via JS -->
+        <div class="dash-top3-grid" id="dash-ranking-list">
+          <!-- Renderizado via JS (Top 3) -->
         </div>
       </div>
     </section>
