@@ -6,10 +6,17 @@
 const OperacoesModule = (() => {
   'use strict';
 
+  function getLocalDateString(d = new Date()) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
   // Estado global do módulo
   const state = {
     periodo: 'hoje',
-    data: new Date().toISOString().split('T')[0],
+    data: '',
     loja: '',
     cidade: '',
     estado: 'todos',
@@ -272,8 +279,16 @@ const OperacoesModule = (() => {
       if (state.estado !== 'todos') params.estado = state.estado;
       if (state.status !== 'todos') params.status = state.status;
 
-      const operacoes = await RebussAPI.operacoes.list(params);
-      state.operacoesList = Array.isArray(operacoes) ? operacoes : [];
+      const rawOperacoes = await RebussAPI.operacoes.list(params);
+
+      // Deduplicação estrita baseada no ID único da operação (preserva operações distintas de mesma loja)
+      const uniqueOpsMap = new Map();
+      (Array.isArray(rawOperacoes) ? rawOperacoes : []).forEach(op => {
+        if (op && op.id && !uniqueOpsMap.has(op.id)) {
+          uniqueOpsMap.set(op.id, op);
+        }
+      });
+      state.operacoesList = Array.from(uniqueOpsMap.values());
 
       atualizarMetricasGlobais(state.operacoesList);
       renderizarPendencias(state.operacoesList, pendenciasContainer, pendenciasWrapper);
@@ -395,7 +410,16 @@ const OperacoesModule = (() => {
   function renderizarCardsOperacoes(operacoes, container, contagemEl, tituloEl) {
     if (!container) return;
 
-    const count = operacoes.length;
+    // Garantir que a renderização ocorra sobre operações únicas por id
+    const uniqueMap = new Map();
+    (Array.isArray(operacoes) ? operacoes : []).forEach(op => {
+      if (op && op.id && !uniqueMap.has(op.id)) {
+        uniqueMap.set(op.id, op);
+      }
+    });
+    const listaUnica = Array.from(uniqueMap.values());
+    const count = listaUnica.length;
+
     if (contagemEl) {
       contagemEl.textContent = `${count} ${count === 1 ? 'operação encontrada' : 'operações encontradas'}`;
     }
@@ -423,7 +447,7 @@ const OperacoesModule = (() => {
       return;
     }
 
-    container.innerHTML = operacoes.map(op => {
+    container.innerHTML = listaUnica.map(op => {
       const dataFmt = formatarDataBR(op.data);
       const isFinalizada = op.status === 'FINALIZADA';
       const isPivIncompleto = op.pivIncompleto;
@@ -1739,6 +1763,8 @@ const OperacoesModule = (() => {
 
   return {
     render,
+    recarregar: carregarListaOperacoes,
+    carregarOperacoes: carregarListaOperacoes,
     carregarListaOperacoes,
     abrirOperacao,
     fecharPainelOperacao,

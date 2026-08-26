@@ -91,11 +91,48 @@ router.post('/', async (req, res) => {
       return res.status(404).json({ erro: 'Loja não encontrada ou não pertence ao seu usuário' });
     }
 
+    const dt = new Date(data);
+    const y = isNaN(dt.getTime()) ? new Date().getUTCFullYear() : dt.getUTCFullYear();
+    const m = isNaN(dt.getTime()) ? new Date().getUTCMonth() : dt.getUTCMonth();
+    const d = isNaN(dt.getTime()) ? new Date().getUTCDate() : dt.getUTCDate();
+    const dataNormalizada = new Date(Date.UTC(y, m, d, 12, 0, 0));
+    const start = new Date(Date.UTC(y, m, d, 0, 0, 0, 0));
+    const end = new Date(Date.UTC(y, m, d, 23, 59, 59, 999));
+
+    let escalaExistente = await prisma.escala.findFirst({
+      where: {
+        lojaId,
+        data: { gte: start, lte: end },
+        ...(req.userSistema.perfil === 'ADMIN' || req.userSistema.perfil === 'GESTOR' ? {} : { usuarioSistemaId: req.userSistema.id }),
+      },
+      include: {
+        loja: true,
+        membros: { include: { usuario: true } },
+      },
+    });
+
+    if (escalaExistente) {
+      const escala = await prisma.escala.update({
+        where: { id: escalaExistente.id },
+        data: {
+          horario: horario.trim(),
+          pivNecessario: pivNecessario !== undefined ? (pivNecessario ? parseInt(pivNecessario) : null) : escalaExistente.pivNecessario,
+          observacoes: observacoes !== undefined ? (observacoes?.trim() || null) : escalaExistente.observacoes,
+          status: status?.toUpperCase() || escalaExistente.status,
+        },
+        include: {
+          loja: true,
+          membros: { include: { usuario: true } },
+        },
+      });
+      return res.status(200).json(escala);
+    }
+
     const escala = await prisma.escala.create({
       data: {
         usuarioSistemaId: req.userSistema.id,
         lojaId,
-        data: new Date(data),
+        data: dataNormalizada,
         horario: horario.trim(),
         pivNecessario: pivNecessario ? parseInt(pivNecessario) : null,
         observacoes: observacoes?.trim() || null,

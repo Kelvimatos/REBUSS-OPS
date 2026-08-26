@@ -230,7 +230,8 @@ const ImportadorModule = (() => {
         App.playSound('copy');
       }
 
-      // Atualizar Dashboard e Histórico se visíveis
+      // Atualizar Operações, Dashboard e Histórico se visíveis
+      if (window.OperacoesModule && OperacoesModule.carregarListaOperacoes) OperacoesModule.carregarListaOperacoes();
       if (window.DashboardModule) DashboardModule.render();
       if (window.HistoricoModule) HistoricoModule.render();
 

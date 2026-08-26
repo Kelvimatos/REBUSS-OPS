@@ -34,6 +34,235 @@ function getOperacaoWhere(id, userSistema) {
 }
 
 /**
+ * Normaliza o nome da loja removendo prefixos comuns (DSP, DP, LOJA, UNIDADE, CD, etc.)
+ */
+function cleanLojaName(rawName) {
+  if (!rawName) return '';
+  return String(rawName)
+    .replace(/^(DSP|DP|LOJA|UNIDADE|CD|LOCAL|INVENTÁRIO EM|INVENTARIO EM)\s*[-–—:]*\s*/i, '')
+    .replace(/[*_#]/g, '')
+    .trim();
+}
+
+/**
+ * Retorna o Date normalizado (meio-dia UTC) e o intervalo de início e fim do dia (UTC)
+ * para busca e armazenamento seguros sem desvios de fuso horário.
+ */
+function getDiaDateRange(dataInput) {
+  const dt = parseDataOperacao(dataInput);
+  const y = dt.getUTCFullYear();
+  const m = dt.getUTCMonth();
+  const d = dt.getUTCDate();
+
+  const dataNormalizada = new Date(Date.UTC(y, m, d, 12, 0, 0));
+  const start = new Date(Date.UTC(y, m, d, 0, 0, 0, 0));
+  const end = new Date(Date.UTC(y, m, d, 23, 59, 59, 999));
+
+  return { dataNormalizada, start, end };
+}
+
+/**
+ * Localiza ou cria a Loja respeitando o escopo do usuário (ou global se ADMIN/GESTOR)
+ * com suporte a variações de prefixos (ex: "DSP JOAQUINA RAMALHO" vs "JOAQUINA RAMALHO").
+ */
+async function findOrCreateLoja(prismaInstance, { lojaNome, cidade, estado, endereco, userSistema }) {
+  if (!lojaNome || !lojaNome.trim()) {
+    throw new Error('O nome da loja é obrigatório');
+  }
+
+  const rawNome = lojaNome.trim();
+  const cleanedNome = cleanLojaName(rawNome);
+  const isAdminOrGestor = userSistema && (userSistema.perfil === 'ADMIN' || userSistema.perfil === 'GESTOR');
+  const baseWhere = isAdminOrGestor ? {} : { usuarioSistemaId: userSistema?.id };
+
+  // 1. Busca exata por nome no escopo do usuário
+  let loja = await prismaInstance.loja.findFirst({
+    where: {
+      ...baseWhere,
+      nome: { equals: rawNome, mode: 'insensitive' },
+    },
+  });
+
+  // 2. Busca por nome limpo (se diferente)
+  if (!loja && cleanedNome && cleanedNome !== rawNome) {
+    loja = await prismaInstance.loja.findFirst({
+      where: {
+        ...baseWhere,
+        OR: [
+          { nome: { equals: cleanedNome, mode: 'insensitive' } },
+          { nome: { contains: cleanedNome, mode: 'insensitive' } },
+        ],
+      },
+    });
+  }
+
+  // 3. Busca por contains
+  if (!loja) {
+    loja = await prismaInstance.loja.findFirst({
+      where: {
+        ...baseWhere,
+        OR: [
+          { nome: { contains: rawNome, mode: 'insensitive' } },
+          ...(cleanedNome ? [{ nome: { contains: cleanedNome, mode: 'insensitive' } }] : []),
+        ],
+      },
+    });
+  }
+
+  // 4. Se não achou e não era admin, busca no escopo global para reaproveitar cadastro existente
+  if (!loja && !isAdminOrGestor) {
+    loja = await prismaInstance.loja.findFirst({
+      where: {
+        OR: [
+          { nome: { equals: rawNome, mode: 'insensitive' } },
+          ...(cleanedNome ? [{ nome: { equals: cleanedNome, mode: 'insensitive' } }] : []),
+          { nome: { contains: rawNome, mode: 'insensitive' } },
+        ],
+      },
+    });
+  }
+
+  // 5. Criar loja se não existir
+  if (!loja) {
+    loja = await prismaInstance.loja.create({
+      data: {
+        usuarioSistemaId: userSistema?.id || null,
+        nome: rawNome,
+        cidade: cidade?.trim() || 'São Paulo',
+        estado: estado?.trim().toUpperCase() || 'SP',
+        endereco: endereco?.trim() || null,
+      },
+    });
+  } else if (endereco && !loja.endereco) {
+    loja = await prismaInstance.loja.update({
+      where: { id: loja.id },
+      data: { endereco: endereco.trim() },
+    });
+  }
+
+  return loja;
+}
+
+/**
+ * Localiza escala existente para a mesma loja e mesma data respeitando escopo de permissão.
+ */
+async function findExistingEscala(prismaInstance, { lojaId, lojaNome, data, horario, userSistema }) {
+  const { start, end } = getDiaDateRange(data);
+  const isAdminOrGestor = userSistema && (userSistema.perfil === 'ADMIN' || userSistema.perfil === 'GESTOR');
+  const userFilter = isAdminOrGestor ? {} : { usuarioSistemaId: userSistema?.id };
+
+  const orConditions = [];
+
+  if (lojaId) {
+    orConditions.push({
+      lojaId,
+      data: { gte: start, lte: end },
+      ...userFilter,
+    });
+  }
+
+  if (lojaNome) {
+    const rawNome = lojaNome.trim();
+    const cleaned = cleanLojaName(rawNome);
+
+    const lojaConditions = [
+      { nome: { equals: rawNome, mode: 'insensitive' } },
+      { nome: { contains: rawNome, mode: 'insensitive' } },
+    ];
+    if (cleaned && cleaned !== rawNome) {
+      lojaConditions.push({ nome: { equals: cleaned, mode: 'insensitive' } });
+      lojaConditions.push({ nome: { contains: cleaned, mode: 'insensitive' } });
+    }
+
+    orConditions.push({
+      loja: { OR: lojaConditions },
+      data: { gte: start, lte: end },
+      ...userFilter,
+    });
+  }
+
+  if (orConditions.length === 0) return null;
+
+  return await prismaInstance.escala.findFirst({
+    where: { OR: orConditions },
+    include: { membros: { include: { usuario: true } }, loja: true },
+    orderBy: { createdAt: 'asc' },
+  });
+}
+
+/**
+ * Consolida registros duplicados legados de Escala no banco (mesma lojaId e mesma data/horário)
+ */
+async function consolidarEscalasDuplicadas(prismaInstance) {
+  try {
+    const escalas = await prismaInstance.escala.findMany({
+      include: {
+        membros: true,
+        statusLogs: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const groups = new Map();
+
+    for (const esc of escalas) {
+      const dt = new Date(esc.data);
+      const dayKey = `${esc.lojaId}_${dt.getUTCFullYear()}-${dt.getUTCMonth()}-${dt.getUTCDate()}_${(esc.horario || '').trim()}`;
+
+      if (!groups.has(dayKey)) {
+        groups.set(dayKey, []);
+      }
+      groups.get(dayKey).push(esc);
+    }
+
+    for (const [, list] of groups) {
+      if (list.length <= 1) continue;
+
+      const primary = list[0];
+      const existingUserIds = new Set(primary.membros.map(m => m.usuarioId));
+
+      for (let i = 1; i < list.length; i++) {
+        const secondary = list[i];
+
+        // Mover membros da secundária para a primária
+        for (const membro of secondary.membros) {
+          if (!existingUserIds.has(membro.usuarioId)) {
+            try {
+              await prismaInstance.escalaMembro.update({
+                where: { id: membro.id },
+                data: { escalaId: primary.id },
+              });
+              existingUserIds.add(membro.usuarioId);
+            } catch (mErr) {
+              console.warn('Consolidação: membro ignorado:', mErr.message);
+            }
+          }
+        }
+
+        // Mover statusLogs
+        try {
+          await prismaInstance.statusLog.updateMany({
+            where: { escalaId: secondary.id },
+            data: { escalaId: primary.id },
+          });
+        } catch {}
+
+        // Excluir escala duplicada secundária
+        try {
+          await prismaInstance.escala.delete({
+            where: { id: secondary.id },
+          });
+        } catch (delErr) {
+          console.warn('Consolidação: falha ao deletar escala duplicada:', delErr.message);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Aviso: falha na consolidação de escalas duplicadas:', err.message);
+  }
+}
+
+/**
  * Limpa e normaliza o nome do colaborador, garantindo que contenha SOMENTE o nome.
  */
 function cleanPersonName(rawText) {
@@ -262,7 +491,8 @@ function parseOperacaoCompletaText(rawText) {
   const lines = rawText.split('\n').map(l => l.trim());
 
   let lojaNome = '';
-  let dataOperacao = new Date();
+  const now = new Date();
+  let dataOperacao = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0));
   let horario = '18:30';
   let cidade = 'São Paulo';
   let estado = 'SP';
@@ -351,22 +581,11 @@ router.post('/analisar', async (req, res) => {
     let escalaExistente = null;
 
     if (analise.lojaNome) {
-      const dt = new Date(analise.dataOperacao);
-      const start = new Date(dt);
-      start.setUTCHours(0, 0, 0, 0);
-      const end = new Date(dt);
-      end.setUTCHours(23, 59, 59, 999);
-
-      escalaExistente = await prisma.escala.findFirst({
-        where: {
-          usuarioSistemaId: req.userSistema.id,
-          loja: {
-            nome: { contains: analise.lojaNome.trim(), mode: 'insensitive' },
-            usuarioSistemaId: req.userSistema.id,
-          },
-          data: { gte: start, lte: end },
-        },
-        include: { loja: true },
+      escalaExistente = await findExistingEscala(prisma, {
+        lojaNome: analise.lojaNome,
+        data: analise.dataOperacao,
+        horario: analise.horario,
+        userSistema: req.userSistema,
       });
 
       if (escalaExistente) {
@@ -415,45 +634,24 @@ router.post('/importar', async (req, res) => {
       return res.status(400).json({ erro: 'O nome da loja é obrigatório' });
     }
 
-    const dt = parseDataOperacao(dataOperacao || data);
-    const start = new Date(dt);
-    start.setUTCHours(0, 0, 0, 0);
-    const end = new Date(dt);
-    end.setUTCHours(23, 59, 59, 999);
+    const { dataNormalizada } = getDiaDateRange(dataOperacao || data);
 
-    // 1. Localizar ou Criar Loja do usuário
-    let loja = await prisma.loja.findFirst({
-      where: {
-        usuarioSistemaId: req.userSistema.id,
-        nome: { contains: lojaNome.trim(), mode: 'insensitive' },
-      },
+    // 1. Localizar ou Criar Loja do usuário de forma resiliente
+    const loja = await findOrCreateLoja(prisma, {
+      lojaNome,
+      cidade,
+      estado,
+      endereco,
+      userSistema: req.userSistema,
     });
 
-    if (!loja) {
-      loja = await prisma.loja.create({
-        data: {
-          usuarioSistemaId: req.userSistema.id,
-          nome: lojaNome.trim(),
-          cidade: cidade?.trim() || 'São Paulo',
-          estado: estado?.trim().toUpperCase() || 'SP',
-          endereco: endereco?.trim() || null,
-        },
-      });
-    } else if (endereco && !loja.endereco) {
-      loja = await prisma.loja.update({
-        where: { id: loja.id },
-        data: { endereco: endereco.trim() },
-      });
-    }
-
     // 2. Verificar se já existe a escala desta loja nesta data para o usuário
-    let escala = await prisma.escala.findFirst({
-      where: {
-        usuarioSistemaId: req.userSistema.id,
-        lojaId: loja.id,
-        data: { gte: start, lte: end },
-      },
-      include: { membros: true, loja: true },
+    let escala = await findExistingEscala(prisma, {
+      lojaId: loja.id,
+      lojaNome: loja.nome,
+      data: dataNormalizada,
+      horario,
+      userSistema: req.userSistema,
     });
 
     let isNova = false;
@@ -465,7 +663,7 @@ router.post('/importar', async (req, res) => {
         data: {
           usuarioSistemaId: req.userSistema.id,
           lojaId: loja.id,
-          data: dt,
+          data: dataNormalizada,
           horario: (horario || '18:30').trim(),
           pivNecessario: piv,
           status: 'ABERTA',
@@ -648,7 +846,7 @@ router.post('/importar', async (req, res) => {
           usuarioSistemaId: req.userSistema.id,
           usuarioNome: req.userSistema.nome,
           lojaNome: loja.nome,
-          dataOperacao: dt,
+          dataOperacao: dataNormalizada,
           horarioOperacao: horario || '18:30',
           totalProcessados: colaboradores.length,
           totalNovos: novosCadastrados,
@@ -680,16 +878,21 @@ router.post('/importar', async (req, res) => {
 async function listarOperacoesComFiltro(query, userSistema) {
   const { periodo = 'hoje', data, loja, cidade, estado, status, limit = 100, page = 1 } = query;
 
-  const now = new Date();
-  const todayStart = new Date(now);
-  todayStart.setUTCHours(0, 0, 0, 0);
-  const todayEnd = new Date(now);
-  todayEnd.setUTCHours(23, 59, 59, 999);
+  // Limpeza de duplicatas legadas antes da listagem
+  await consolidarEscalasDuplicadas(prisma);
 
-  const tomorrowStart = new Date(todayStart);
-  tomorrowStart.setUTCDate(tomorrowStart.getUTCDate() + 1);
-  const tomorrowEnd = new Date(todayEnd);
-  tomorrowEnd.setUTCDate(tomorrowEnd.getUTCDate() + 1);
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const d = now.getDate();
+
+  // Hoje no calendário local
+  const todayStart = new Date(Date.UTC(y, m, d, 0, 0, 0, 0));
+  const todayEnd = new Date(Date.UTC(y, m, d, 23, 59, 59, 999));
+
+  // Amanhã no calendário local
+  const tomorrowStart = new Date(Date.UTC(y, m, d + 1, 0, 0, 0, 0));
+  const tomorrowEnd = new Date(Date.UTC(y, m, d + 1, 23, 59, 59, 999));
 
   const where = {};
   if (userSistema && typeof userSistema === 'object') {
@@ -701,11 +904,7 @@ async function listarOperacoesComFiltro(query, userSistema) {
   }
 
   if (data) {
-    const customDate = new Date(data);
-    const start = new Date(customDate);
-    start.setUTCHours(0, 0, 0, 0);
-    const end = new Date(customDate);
-    end.setUTCHours(23, 59, 59, 999);
+    const { start, end } = getDiaDateRange(data);
     where.data = { gte: start, lte: end };
   } else if (periodo === 'hoje') {
     where.data = { gte: todayStart, lte: todayEnd };
@@ -719,9 +918,15 @@ async function listarOperacoesComFiltro(query, userSistema) {
   }
 
   if (loja && loja.trim()) {
+    const rawLoja = loja.trim();
+    const cleaned = cleanLojaName(rawLoja);
+    const lojaFilterOr = [{ nome: { contains: rawLoja, mode: 'insensitive' } }];
+    if (cleaned && cleaned !== rawLoja) {
+      lojaFilterOr.push({ nome: { contains: cleaned, mode: 'insensitive' } });
+    }
     where.loja = {
       ...where.loja,
-      nome: { contains: loja.trim(), mode: 'insensitive' },
+      OR: lojaFilterOr,
     };
   }
 
@@ -768,7 +973,18 @@ async function listarOperacoesComFiltro(query, userSistema) {
     },
   });
 
-  return operacoes.map(op => {
+  // Deduplicação estrita por op.id para garantir que nenhum ID apareça duplicado na resposta
+  const uniqueOperacoesMap = new Map();
+  for (const op of operacoes) {
+    if (!op || !op.id) continue;
+    if (!uniqueOperacoesMap.has(op.id)) {
+      uniqueOperacoesMap.set(op.id, op);
+    }
+  }
+
+  const operacoesUnicas = Array.from(uniqueOperacoesMap.values());
+
+  return operacoesUnicas.map(op => {
     const pivNecessario = op.pivNecessario || op.membros.length || 0;
     const confirmados = op.membros.filter(m => m.status === 'CONFIRMADO' || m.confirmou).length;
     const aCaminho = op.membros.filter(m => m.status === 'A_CAMINHO').length;
@@ -793,11 +1009,11 @@ async function listarOperacoesComFiltro(query, userSistema) {
 
     return {
       id: op.id,
-      lojaId: op.loja.id,
-      loja: op.loja.nome,
-      cidade: op.loja.cidade || 'São Paulo',
-      estado: op.loja.estado || 'SP',
-      endereco: op.loja.endereco || '',
+      lojaId: op.loja?.id || op.lojaId,
+      loja: op.loja?.nome || 'Operação',
+      cidade: op.loja?.cidade || 'São Paulo',
+      estado: op.loja?.estado || 'SP',
+      endereco: op.loja?.endereco || '',
       data: op.data,
       horario: op.horario,
       status: op.status,
@@ -815,13 +1031,13 @@ async function listarOperacoesComFiltro(query, userSistema) {
       totalMembros: op.membros.length,
       membros: op.membros.map(m => ({
         id: m.id,
-        usuarioId: m.usuario.id,
-        codigo: m.codigo || m.usuario.codigo || '—',
-        nome: m.usuario.nome,
-        matricula: m.usuario.matricula || '—',
+        usuarioId: m.usuario?.id || m.usuarioId,
+        codigo: m.codigo || m.usuario?.codigo || '—',
+        nome: m.usuario?.nome || 'Colaborador',
+        matricula: m.usuario?.matricula || '—',
         cargo: m.cargo || 'Operador',
-        cidade: m.cidade || m.usuario.cidade || '',
-        telefone: m.telefone || m.usuario.telefone || '',
+        cidade: m.cidade || m.usuario?.cidade || '',
+        telefone: m.telefone || m.usuario?.telefone || '',
         status: m.status,
         confirmou: m.confirmou,
         chegou: m.chegou,
@@ -952,58 +1168,74 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ erro: 'Loja, Data e Horário são obrigatórios' });
     }
 
-    const dt = parseDataOperacao(dataRecebida);
+    const { dataNormalizada } = getDiaDateRange(dataRecebida);
 
-    // 1. Localizar ou Criar Loja pertencente ao usuário
-    let loja = await prisma.loja.findFirst({
-      where: {
-        usuarioSistemaId: req.userSistema.id,
-        nome: { contains: lojaNome.trim(), mode: 'insensitive' },
-      },
+    // 1. Localizar ou Criar Loja pertencente ao usuário de forma resiliente
+    const loja = await findOrCreateLoja(prisma, {
+      lojaNome,
+      cidade,
+      estado,
+      endereco,
+      userSistema: req.userSistema,
     });
 
-    if (!loja) {
-      loja = await prisma.loja.create({
+    const piv = pivNecessario ? parseInt(pivNecessario, 10) : 5;
+
+    // 2. Verificar se já existe uma operação para esta loja nesta data
+    let escala = await findExistingEscala(prisma, {
+      lojaId: loja.id,
+      lojaNome: loja.nome,
+      data: dataNormalizada,
+      horario,
+      userSistema: req.userSistema,
+    });
+
+    let isNova = false;
+
+    if (!escala) {
+      isNova = true;
+      escala = await prisma.escala.create({
         data: {
           usuarioSistemaId: req.userSistema.id,
-          nome: lojaNome.trim(),
-          cidade: cidade?.trim() || 'São Paulo',
-          estado: estado?.trim().toUpperCase() || 'SP',
-          endereco: endereco?.trim() || null,
+          lojaId: loja.id,
+          data: dataNormalizada,
+          horario: horario.trim(),
+          pivNecessario: isNaN(piv) ? 5 : piv,
+          observacoes: observacoes?.trim() || null,
+          status: 'ABERTA',
+          importadoPor: req.userSistema.nome,
+          importadoEm: new Date(),
+          statusLogs: {
+            create: {
+              tipo: 'CRIACAO',
+              descricao: `Operação ${loja.nome} criada com PIV de ${isNaN(piv) ? 5 : piv} pessoas.`,
+            },
+          },
+        },
+        include: {
+          loja: true,
+          membros: { include: { usuario: true } },
+        },
+      });
+    } else {
+      // Se já existia uma escala para esta loja nesta data, atualiza sem duplicar
+      escala = await prisma.escala.update({
+        where: { id: escala.id },
+        data: {
+          horario: horario.trim(),
+          pivNecessario: isNaN(piv) ? escala.pivNecessario : piv,
+          observacoes: observacoes !== undefined ? (observacoes?.trim() || null) : escala.observacoes,
+        },
+        include: {
+          loja: true,
+          membros: { include: { usuario: true } },
         },
       });
     }
 
-    const piv = pivNecessario ? parseInt(pivNecessario, 10) : 5;
-
-    // 2. Criar Operação vinculada ao usuário
-    const escala = await prisma.escala.create({
-      data: {
-        usuarioSistemaId: req.userSistema.id,
-        lojaId: loja.id,
-        data: dt,
-        horario: horario.trim(),
-        pivNecessario: isNaN(piv) ? 5 : piv,
-        observacoes: observacoes?.trim() || null,
-        status: 'ABERTA',
-        importadoPor: req.userSistema.nome,
-        importadoEm: new Date(),
-        statusLogs: {
-          create: {
-            tipo: 'CRIACAO',
-            descricao: `Operação ${loja.nome} criada com PIV de ${isNaN(piv) ? 5 : piv} pessoas.`,
-          },
-        },
-      },
-      include: {
-        loja: true,
-        membros: { include: { usuario: true } },
-      },
-    });
-
-    res.status(201).json({
+    res.status(isNova ? 201 : 200).json({
       sucesso: true,
-      mensagem: `Operação ${loja.nome} criada com sucesso!`,
+      mensagem: isNova ? `Operação ${loja.nome} criada com sucesso!` : `Operação ${loja.nome} atualizada com sucesso!`,
       operacao: escala,
     });
   } catch (err) {
