@@ -1611,26 +1611,63 @@ router.put('/:id/membros/:usuarioId', async (req, res) => {
 
     if (!membro) return res.status(404).json({ erro: 'Membro não encontrado nesta operação' });
 
+    // Normalização da matrícula
+    const safeMatricula = matricula !== undefined && matricula !== null
+      ? (String(matricula).trim() || null)
+      : undefined;
+
+    // Se matrícula foi informada, verificar unicidade no backend
+    if (safeMatricula) {
+      const usuarioComMatricula = await prisma.usuario.findFirst({
+        where: {
+          OR: [
+            { matricula: safeMatricula },
+            { codigo: safeMatricula },
+          ],
+        },
+      });
+
+      // Se encontrou usuário E o ID for diferente do colaborador sendo editado -> Bloqueia
+      if (usuarioComMatricula && usuarioComMatricula.id !== usuarioId) {
+        return res.status(400).json({
+          erro: `A matrícula ${safeMatricula} já está cadastrada para outro colaborador. Informe uma matrícula diferente.`,
+        });
+      }
+    }
+
     // 1. Atualizar registro global do Usuario
     const userUpdate = {};
-    if (nome && nome.trim()) userUpdate.nome = nome.trim();
-    if (matricula !== undefined) userUpdate.matricula = matricula ? String(matricula).trim() : null;
-    if (cidade !== undefined) userUpdate.cidade = cidade ? cidade.trim() : null;
-    if (telefone !== undefined) userUpdate.telefone = telefone ? telefone.trim() : null;
+    if (nome !== undefined) {
+      const nomeTrim = String(nome || '').trim();
+      if (nomeTrim) userUpdate.nome = nomeTrim;
+    }
+    if (safeMatricula !== undefined) {
+      userUpdate.matricula = safeMatricula;
+      userUpdate.codigo = safeMatricula;
+    }
+    if (cidade !== undefined) userUpdate.cidade = cidade ? String(cidade).trim() || null : null;
+    if (telefone !== undefined) userUpdate.telefone = telefone ? String(telefone).trim() || null : null;
 
     if (Object.keys(userUpdate).length > 0) {
-      await prisma.usuario.update({
-        where: { id: usuarioId },
-        data: userUpdate,
-      });
+      try {
+        await prisma.usuario.update({
+          where: { id: usuarioId },
+          data: userUpdate,
+        });
+      } catch (errUser) {
+        if (errUser.code === 'P2002') {
+          return res.status(400).json({ erro: 'Já existe um colaborador cadastrado com esta matrícula.' });
+        }
+        throw errUser;
+      }
     }
 
     // 2. Atualizar registro local na EscalaMembro
     const membroUpdate = {};
-    if (matricula !== undefined) membroUpdate.codigo = matricula ? String(matricula).trim() : null;
-    if (cidade !== undefined) membroUpdate.cidade = cidade ? cidade.trim() : null;
-    if (telefone !== undefined) membroUpdate.telefone = telefone ? telefone.trim() : null;
-    if (cargo && cargo.trim()) membroUpdate.cargo = cargo.trim();
+    if (safeMatricula !== undefined) membroUpdate.codigo = safeMatricula;
+    if (cidade !== undefined) membroUpdate.cidade = cidade ? String(cidade).trim() || null : null;
+    if (telefone !== undefined) membroUpdate.telefone = telefone ? String(telefone).trim() || null : null;
+    if (cargo && String(cargo).trim()) membroUpdate.cargo = String(cargo).trim();
 
     const membroAtualizado = await prisma.escalaMembro.update({
       where: { id: membro.id },
@@ -1653,8 +1690,11 @@ router.put('/:id/membros/:usuarioId', async (req, res) => {
       membro: membroAtualizado,
     });
   } catch (err) {
+    if (err.code === 'P2002') {
+      return res.status(400).json({ erro: 'Já existe um colaborador cadastrado com esta matrícula.' });
+    }
     console.error('PUT /api/operacoes/:id/membros/:usuarioId:', err);
-    res.status(500).json({ erro: 'Erro ao atualizar colaborador', detalhe: err.message });
+    res.status(500).json({ erro: 'Erro ao atualizar colaborador' });
   }
 });
 
@@ -1838,19 +1878,20 @@ router.post('/:id/membros', async (req, res) => {
 
     // Se usuarioId não for fornecido, busca ou cria o colaborador na tabela Usuario
     if (!usuarioId) {
-      if (!nome || !nome.trim()) {
+      if (!nome || !String(nome).trim()) {
         return res.status(400).json({ erro: 'Nome ou usuarioId é obrigatório' });
       }
 
       const nomeLimpo = cleanPersonName(nome);
-      const matriculaStr = (matricula || codigo) ? String(matricula || codigo).trim() : null;
-      const codigoStr = (codigo || matricula) ? String(codigo || matricula).trim() : null;
-      const telefoneStr = telefone ? String(telefone).trim() : null;
-      const cidadeStr = cidade ? String(cidade).trim() : (op.loja?.cidade || 'São Paulo');
+      const matriculaStr = (matricula || codigo) ? (String(matricula || codigo).trim() || null) : null;
+      const telefoneStr = telefone ? (String(telefone).trim() || null) : null;
+      const cidadeStr = cidade ? (String(cidade).trim() || null) : (op.loja?.cidade || 'São Paulo');
 
       let user = null;
+
+      // Se matrícula foi informada, buscar usuário existente
       if (matriculaStr) {
-        user = await prisma.usuario.findFirst({
+        const userComMatricula = await prisma.usuario.findFirst({
           where: {
             OR: [
               { matricula: matriculaStr },
@@ -1858,43 +1899,80 @@ router.post('/:id/membros', async (req, res) => {
             ],
           },
         });
+
+        if (userComMatricula) {
+          // Se pertence ao mesmo colaborador (mesmo nome)
+          if (userComMatricula.nome.toLowerCase() === nomeLimpo.toLowerCase()) {
+            user = userComMatricula;
+          } else {
+            // Matrícula pertence a OUTRO colaborador
+            return res.status(400).json({
+              erro: 'A matrícula informada já está cadastrada para outro colaborador. Verifique a matrícula e tente novamente.',
+            });
+          }
+        }
       }
+
+      // Se não achou por matrícula, busca por nome
       if (!user) {
         user = await prisma.usuario.findFirst({
           where: { nome: { equals: nomeLimpo, mode: 'insensitive' } },
         });
       }
-      if (!user) {
-        let safeMatricula = matriculaStr;
-        let safeCodigo = codigoStr;
-        if (safeMatricula) {
-          const matExist = await prisma.usuario.findFirst({ where: { matricula: safeMatricula } });
-          if (matExist) safeMatricula = null;
-        }
-        if (safeCodigo) {
-          const codExist = await prisma.usuario.findFirst({ where: { codigo: safeCodigo } });
-          if (codExist) safeCodigo = null;
-        }
 
-        user = await prisma.usuario.create({
-          data: {
-            nome: nomeLimpo,
-            matricula: safeMatricula,
-            codigo: safeCodigo,
-            telefone: telefoneStr,
-            cidade: cidadeStr,
-            estado: op.loja?.estado || 'SP',
-          },
-        });
+      // Se não existir usuário, cria novo
+      if (!user) {
+        try {
+          user = await prisma.usuario.create({
+            data: {
+              nome: nomeLimpo,
+              matricula: matriculaStr,
+              codigo: matriculaStr,
+              telefone: telefoneStr,
+              cidade: cidadeStr,
+              estado: op.loja?.estado || 'SP',
+            },
+          });
+        } catch (createErr) {
+          if (createErr.code === 'P2002') {
+            return res.status(400).json({ erro: 'Já existe um colaborador cadastrado com esta matrícula.' });
+          }
+          throw createErr;
+        }
+      } else {
+        // Se usuário já existia, mas não tinha matrícula e foi informada uma agora
+        if (matriculaStr && !user.matricula) {
+          try {
+            user = await prisma.usuario.update({
+              where: { id: user.id },
+              data: { matricula: matriculaStr, codigo: matriculaStr },
+            });
+          } catch (updErr) {
+            if (updErr.code === 'P2002') {
+              return res.status(400).json({ erro: 'Já existe um colaborador cadastrado com esta matrícula.' });
+            }
+          }
+        }
       }
+
       usuarioId = user.id;
+    }
+
+    // Verificar se o colaborador já está vinculado a esta operação
+    const membroJaNaOperacao = await prisma.escalaMembro.findUnique({
+      where: { escalaId_usuarioId: { escalaId: id, usuarioId } },
+    });
+
+    if (membroJaNaOperacao) {
+      return res.status(409).json({ erro: 'Este colaborador já está adicionado nesta operação.' });
     }
 
     const membro = await prisma.escalaMembro.create({
       data: {
         escalaId: id,
         usuarioId,
-        cargo: cargo ? cargo.trim() : 'Operador',
+        cargo: cargo ? String(cargo).trim() : 'Operador',
+        codigo: (matricula || codigo) ? (String(matricula || codigo).trim() || null) : null,
         status: status || 'PENDENTE',
         historicoStatus: JSON.stringify([{ status: status || 'PENDENTE', horario: new Date().toISOString() }]),
       },
@@ -1912,9 +1990,9 @@ router.post('/:id/membros', async (req, res) => {
 
     res.status(201).json(membro);
   } catch (err) {
-    if (err.code === 'P2002') return res.status(409).json({ erro: 'Colaborador já está nesta operação' });
+    if (err.code === 'P2002') return res.status(409).json({ erro: 'Este colaborador já está adicionado nesta operação.' });
     console.error('POST /api/operacoes/:id/membros:', err);
-    res.status(500).json({ erro: 'Erro ao adicionar membro', detalhe: err.message });
+    res.status(500).json({ erro: 'Erro ao adicionar membro à operação' });
   }
 });
 

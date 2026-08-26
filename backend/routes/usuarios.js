@@ -64,12 +64,31 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { nome, matricula, telefone, cidade, estado, status } = req.body;
-    if (!nome) return res.status(400).json({ erro: 'Campo obrigatório: nome' });
+    if (!nome || !nome.trim()) return res.status(400).json({ erro: 'Campo obrigatório: nome' });
+
+    const safeMatricula = matricula ? (String(matricula).trim() || null) : null;
+
+    if (safeMatricula) {
+      const matriculaExistente = await prisma.usuario.findFirst({
+        where: {
+          OR: [
+            { matricula: safeMatricula },
+            { codigo: safeMatricula },
+          ],
+        },
+      });
+      if (matriculaExistente) {
+        return res.status(400).json({
+          erro: 'A matrícula informada já está cadastrada para outro colaborador. Verifique a matrícula e tente novamente.',
+        });
+      }
+    }
 
     const usuario = await prisma.usuario.create({
       data: {
         nome: nome.trim(),
-        matricula: matricula ? String(matricula).trim() : null,
+        matricula: safeMatricula,
+        codigo: safeMatricula,
         telefone: telefone?.trim() || null,
         cidade: cidade?.trim() || null,
         estado: estado?.trim().toUpperCase() || null,
@@ -79,10 +98,10 @@ router.post('/', async (req, res) => {
     res.status(201).json(usuario);
   } catch (err) {
     if (err.code === 'P2002') {
-      return res.status(409).json({ erro: 'Matrícula já cadastrada' });
+      return res.status(400).json({ erro: 'Já existe um colaborador cadastrado com esta matrícula.' });
     }
     console.error('POST /api/usuarios:', err);
-    res.status(500).json({ erro: 'Erro ao criar usuário', detalhe: err.message });
+    res.status(500).json({ erro: 'Erro ao criar usuário' });
   }
 });
 
@@ -90,24 +109,49 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { nome, matricula, telefone, cidade, estado, status } = req.body;
+    const usuarioId = req.params.id;
+
+    const safeMatricula = matricula !== undefined && matricula !== null
+      ? (String(matricula).trim() || null)
+      : undefined;
+
+    if (safeMatricula) {
+      const matriculaExistente = await prisma.usuario.findFirst({
+        where: {
+          OR: [
+            { matricula: safeMatricula },
+            { codigo: safeMatricula },
+          ],
+        },
+      });
+      if (matriculaExistente && matriculaExistente.id !== usuarioId) {
+        return res.status(400).json({
+          erro: `A matrícula ${safeMatricula} já está cadastrada para outro colaborador. Informe uma matrícula diferente.`,
+        });
+      }
+    }
+
     const data = {};
     if (nome !== undefined) data.nome = nome.trim();
-    if (matricula !== undefined) data.matricula = matricula ? String(matricula).trim() : null;
+    if (safeMatricula !== undefined) {
+      data.matricula = safeMatricula;
+      data.codigo = safeMatricula;
+    }
     if (telefone !== undefined) data.telefone = telefone?.trim() || null;
     if (cidade !== undefined) data.cidade = cidade?.trim() || null;
     if (estado !== undefined) data.estado = estado?.trim().toUpperCase() || null;
     if (status !== undefined) data.status = Boolean(status);
 
     const usuario = await prisma.usuario.update({
-      where: { id: req.params.id },
+      where: { id: usuarioId },
       data,
     });
     res.json(usuario);
   } catch (err) {
     if (err.code === 'P2025') return res.status(404).json({ erro: 'Usuário não encontrado' });
-    if (err.code === 'P2002') return res.status(409).json({ erro: 'Matrícula já cadastrada' });
+    if (err.code === 'P2002') return res.status(400).json({ erro: 'Já existe um colaborador cadastrado com esta matrícula.' });
     console.error('PUT /api/usuarios/:id:', err);
-    res.status(500).json({ erro: 'Erro ao atualizar usuário', detalhe: err.message });
+    res.status(500).json({ erro: 'Erro ao atualizar usuário' });
   }
 });
 

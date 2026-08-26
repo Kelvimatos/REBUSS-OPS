@@ -1332,11 +1332,11 @@ const OperacoesModule = (() => {
     if (!membro) return;
 
     const modal = document.getElementById('modal-editar-membro-op');
-    const idInput = document.getElementById('edit-membro-usuario-id');
-    const nomeInput = document.getElementById('edit-membro-nome');
-    const matInput = document.getElementById('edit-membro-matricula');
-    const cidInput = document.getElementById('edit-membro-cidade');
-    const telInput = document.getElementById('edit-membro-telefone');
+    const idInput = document.getElementById('op-edit-membro-usuario-id') || document.getElementById('edit-membro-usuario-id');
+    const nomeInput = document.getElementById('op-edit-membro-nome') || modal?.querySelector('#op-edit-membro-nome');
+    const matInput = document.getElementById('op-edit-membro-matricula') || modal?.querySelector('#op-edit-membro-matricula');
+    const cidInput = document.getElementById('op-edit-membro-cidade') || modal?.querySelector('#op-edit-membro-cidade');
+    const telInput = document.getElementById('op-edit-membro-telefone') || modal?.querySelector('#op-edit-membro-telefone');
 
     if (idInput) idInput.value = usuarioId;
     if (nomeInput) nomeInput.value = membro.nome || '';
@@ -1351,18 +1351,19 @@ const OperacoesModule = (() => {
     e.preventDefault();
     if (!state.operacaoAtiva) return;
 
-    const idInput = document.getElementById('edit-membro-usuario-id');
-    const nomeInput = document.getElementById('edit-membro-nome');
-    const matInput = document.getElementById('edit-membro-matricula');
-    const cidInput = document.getElementById('edit-membro-cidade');
-    const telInput = document.getElementById('edit-membro-telefone');
+    const modal = document.getElementById('modal-editar-membro-op');
+    const idInput = document.getElementById('op-edit-membro-usuario-id') || document.getElementById('edit-membro-usuario-id');
+    const nomeInput = document.getElementById('op-edit-membro-nome') || modal?.querySelector('#op-edit-membro-nome');
+    const matInput = document.getElementById('op-edit-membro-matricula') || modal?.querySelector('#op-edit-membro-matricula');
+    const cidInput = document.getElementById('op-edit-membro-cidade') || modal?.querySelector('#op-edit-membro-cidade');
+    const telInput = document.getElementById('op-edit-membro-telefone') || modal?.querySelector('#op-edit-membro-telefone');
     const btnSubmit = document.getElementById('btn-submit-editar-membro-op');
 
     const usuarioId = idInput?.value;
-    const nome = nomeInput?.value.trim();
-    const matricula = matInput?.value.trim();
-    const cidade = cidInput?.value.trim();
-    const telefone = telInput?.value.trim();
+    const nome = nomeInput?.value?.trim();
+    const matricula = matInput?.value?.trim() || '';
+    const cidade = cidInput?.value?.trim() || '';
+    const telefone = telInput?.value?.trim() || '';
 
     if (!usuarioId || !nome) {
       showToast('O nome do colaborador é obrigatório', 'error');
@@ -1387,18 +1388,18 @@ const OperacoesModule = (() => {
       const membro = (state.operacaoAtiva.membros || []).find(m => m.usuarioId === usuarioId);
       if (membro) {
         membro.nome = nome;
-        membro.matricula = matricula;
-        membro.codigo = matricula;
+        membro.matricula = matricula || null;
+        membro.codigo = matricula || null;
         membro.cidade = cidade;
         membro.telefone = telefone;
       }
 
       fecharTodosModaisOps();
       filtrarERenderizarTabelaEquipe();
-      showToast('Dados do colaborador atualizados com sucesso!');
+      showToast('✅ Colaborador atualizado com sucesso!');
     } catch (err) {
       console.error('Erro ao atualizar colaborador:', err);
-      showToast(err.message || 'Erro ao atualizar dados', 'error');
+      showToast(err.message || 'Erro ao atualizar dados do colaborador', 'error');
     } finally {
       if (btnSubmit) {
         btnSubmit.disabled = false;
@@ -1684,15 +1685,16 @@ const OperacoesModule = (() => {
     const telefone = prompt('Telefone / WhatsApp (opcional):', '') || '';
 
     try {
+      const codigoLimpo = codigo.trim() || null;
       await RebussAPI.operacoes.addMembro(state.operacaoAtiva.id, {
         nome: nome.trim(),
         cargo: cargo.trim(),
-        codigo: codigo.trim(),
-        matricula: codigo.trim(),
-        telefone: telefone.trim(),
+        codigo: codigoLimpo,
+        matricula: codigoLimpo,
+        telefone: telefone.trim() || null,
       });
 
-      showToast(`${nome.trim()} adicionado à operação com sucesso!`);
+      showToast('✅ Colaborador adicionado com sucesso!');
       await carregarDetalhesOperacao(state.operacaoAtiva.id);
     } catch (err) {
       console.error('Erro ao adicionar colaborador:', err);
